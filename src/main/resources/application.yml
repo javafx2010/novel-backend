@@ -1,6 +1,7 @@
 server:
   port: 8080
 
+
 spring:
   application:
     name: novel-browse
@@ -50,7 +51,7 @@ app:
     # 允许的时间偏差（秒），超出即拒绝
     time-window-seconds: 300
     # 免签路径（Ant 模式）；启用签名后健康检查路径需放这里，否则部署脚本的健康检查会失败
-    exclude-paths: []
+    exclude-paths: ['/covers/**']
   cover:
     # 从 EPUB 提取的封面图保存目录（部署脚本会传 $APP_ROOT/data/covers）
     # 内置的演示封面在 classpath:/static/covers/，两者同在 /covers/** 下访问
