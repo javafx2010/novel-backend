@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  novel-browse 日志配置（Spring Boot 会自动加载 classpath 下的 logback-spring.xml）。
+
+  输出策略：
+    1. 默认只输出到控制台。部署脚本已把 stdout/stderr 重定向到 $APP_ROOT/logs/novel-browse.log，
+       并由 logrotate（每日轮转、保留 14 份）管理，避免日志框架与进程外重定向同时写同一文件。
+    2. 需要日志框架自己写文件并按大小滚动时，激活 profile：SPRING_PROFILES_ACTIVE=file
+       （deploy.conf 中设置即可），此时额外追加 FILE appender，目录取 -DLOG_DIR 或环境变量 LOG_DIR。
+
+  运行期调整级别（优先生效，覆盖本文件的默认值）：
+    启动参数 logging.level.com.novel.browse=DEBUG
+    或环境变量 LOG_LEVEL_APP=DEBUG
+-->
+<configuration>
+
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="novel-browse"/>
+
+    <!-- 业务包日志级别：可用环境变量 LOG_LEVEL_APP 覆盖 -->
+    <property name="LOG_LEVEL_APP" value="${LOG_LEVEL_APP:-INFO}"/>
+    <!-- 文件输出目录：部署脚本通过 -DLOG_DIR 传入（缺省为当前目录下的 logs） -->
+    <property name="LOG_DIR" value="${LOG_DIR:-logs}"/>
+    <property name="LOG_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%15.15thread] %-40.40logger{39} : %msg%n"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- 业务包 -->
+    <logger name="com.novel.browse" level="${LOG_LEVEL_APP}"/>
+
+    <!-- 第三方降噪 -->
+    <logger name="org.hibernate.SQL" level="WARN"/>
+    <logger name="org.hibernate.orm.jdbc.bind" level="WARN"/>
+    <logger name="org.springframework.web.client" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="INFO"/>
+    <logger name="org.apache.catalina" level="INFO"/>
+    <logger name="org.apache.coyote" level="INFO"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <springProfile name="file">
+        <!-- 日志框架自写文件并按时间/大小滚动，目录取 -DLOG_DIR 或环境变量 LOG_DIR -->
+        <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${LOG_DIR}/${APP_NAME}.log</file>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${LOG_DIR}/${APP_NAME}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+                <maxFileSize>50MB</maxFileSize>
+                <maxHistory>30</maxHistory>
+                <totalSizeCap>1GB</totalSizeCap>
+            </rollingPolicy>
+            <encoder>
+                <pattern>${LOG_PATTERN}</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="FILE"/>
+        </root>
+    </springProfile>
+
+</configuration>

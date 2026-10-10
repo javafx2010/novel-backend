@@ -175,6 +175,7 @@ public class RocksDbCache implements Cache {
         }
         if (bytes == null) {
             missCount.incrementAndGet();
+            log.debug("缓存[{}] 未命中：key={}", name, key);
             return null;
         }
         CacheEntry entry = readEntry(bytes);
@@ -188,9 +189,11 @@ public class RocksDbCache implements Cache {
         if (isExpired(entry)) {
             missCount.incrementAndGet();
             evict(key);
+            log.debug("缓存[{}] 已过期：key={}", name, key);
             return null;
         }
         hitCount.incrementAndGet();
+        log.debug("缓存[{}] 命中：key={}", name, key);
         return entry.value;
     }
 

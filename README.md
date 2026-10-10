@@ -46,6 +46,16 @@ java -jar build/libs/novel-browse.jar
 
 服务默认监听 `http://localhost:8080`，接口前缀 `/api`。H2 控制台：`http://localhost:8080/h2-console`（JDBC URL `jdbc:h2:mem:noveldb`，账号 `sa`）。
 
+## 日志
+
+配置文件：`src/main/resources/logback-spring.xml`（Logback，随 `spring-boot-starter` 引入，无需额外依赖）。
+
+- **输出**：默认只输出控制台；服务器部署时脚本把 stdout 重定向到 `~/apps/novel-browse/logs/novel-browse.log`，由 logrotate 每日轮转、保留 14 份
+- **格式**：`时间 级别 [线程] logger : 消息`，UTF-8，不输出颜色转义（便于落文件与检索）
+- **级别**：业务包 `com.novel.browse` 默认 INFO，可用环境变量 `LOG_LEVEL_APP=DEBUG` 或启动参数 `--logging.level.com.novel.browse=DEBUG` 覆盖（后者优先）
+- **日志框架自写文件**（可选）：`SPRING_PROFILES_ACTIVE=file` 时额外追加滚动文件 appender（按天 + 50MB 切分，保留 30 天、总上限 1GB），目录取 `-DLOG_DIR`，部署脚本已自动传入 `$APP_ROOT/logs`
+- **DEBUG 内容**：RocksDB 缓存的命中 / 未命中 / 过期，便于排查缓存效果
+
 ## 服务器部署
 
 面向 Ubuntu 服务器的部署脚本位于 [`scripts/`](scripts/README.md)，服务器目录结构约定：

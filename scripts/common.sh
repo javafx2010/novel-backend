@@ -388,11 +388,11 @@ start_app_nohup() {
     java_bin=$(resolve_java_bin)
     [ -n "$java_bin" ] || die "未找到 java 可执行文件"
     # shellcheck disable=SC2086
-    log "启动服务：java ${JAVA_OPTS} -jar app.jar $(app_args)"
+    log "启动服务：java ${JAVA_OPTS} -DLOG_DIR=$LOG_DIR -jar app.jar $(app_args)"
     (
         cd "$CURRENT_LINK" || exit 1
         # shellcheck disable=SC2086
-        nohup "$java_bin" ${JAVA_OPTS} -jar app.jar $(app_args) >> "$LOG_FILE" 2>&1 &
+        nohup "$java_bin" ${JAVA_OPTS} -DLOG_DIR="$LOG_DIR" -jar app.jar $(app_args) >> "$LOG_FILE" 2>&1 &
         printf '%s' "$!" > "$PID_FILE"
     )
     sleep 1

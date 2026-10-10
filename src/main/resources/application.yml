@@ -47,7 +47,5 @@ rocksdb:
       - novel-chapter-no
       - novel-chapter-list
 
-logging:
-  level:
-    root: INFO
-    com.novel.browse: INFO
+# 日志：级别与输出策略在 logback-spring.xml 中定义（默认 INFO、输出到控制台）
+# 运行期覆盖：--logging.level.com.novel.browse=DEBUG 或环境变量 LOG_LEVEL_APP=DEBUG

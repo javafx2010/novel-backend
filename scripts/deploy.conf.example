@@ -19,6 +19,7 @@ APP_ROOT="$HOME/apps/novel-browse"
 APP_NAME="novel-browse"
 PORT=8080
 # 为空表示不带 profile；生产可设为 prod
+# 设为 file 时，应用会额外用 logback 自写滚动日志文件（$LOG_DIR/novel-browse.log）
 SPRING_PROFILES_ACTIVE=""
 # auto：存在 systemd 单元则用 systemd，否则用 nohup（默认无需 root）
 # nohup：始终用 pid 文件 + 后台进程；systemd：始终用 systemctl
