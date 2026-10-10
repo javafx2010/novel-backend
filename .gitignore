@@ -47,3 +47,7 @@ out/
 logs/
 /.idea/
 /.gradle/
+
+### 部署（本地配置不入库，样例见 scripts/deploy.conf.example） ###
+scripts/deploy.conf
+app.env

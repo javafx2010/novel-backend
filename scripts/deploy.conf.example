@@ -1,0 +1,49 @@
+# novel-browse 部署配置样例
+#
+# 使用方式（二选一，优先级：$APP_ROOT/deploy.conf > scripts/deploy.conf）：
+#   cp scripts/deploy.conf.example scripts/deploy.conf && vim scripts/deploy.conf
+#
+# 注意：deploy.conf 已加入 .gitignore，不会提交到仓库。
+
+# ------------------------- 路径 -------------------------
+# 源码目录（服务器上 git 仓库所在位置）
+SOURCE_DIR="$HOME/source/novel-browse"
+# 部署根目录：releases/ current/ logs/ run/ data/ 都在其下
+APP_ROOT="$HOME/apps/novel-browse"
+
+# ------------------------- 运行 -------------------------
+APP_NAME="novel-browse"
+PORT=8080
+# 为空表示不带 profile；生产可设为 prod
+SPRING_PROFILES_ACTIVE=""
+# auto：存在 systemd 单元则用 systemd，否则用 nohup（默认无需 root）
+# nohup：始终用 pid 文件 + 后台进程；systemd：始终用 systemctl
+MANAGER="auto"
+SERVICE_NAME="novel-browse"
+# systemd 单元使用该用户运行（install-service.sh 会读取）
+RUN_USER="$(id -un)"
+
+# JVM 参数（按服务器内存调整，注意与 Gradle 构建内存分开）
+JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Shanghai"
+# 追加的 Spring Boot 启动参数，例如：
+# EXTRA_ARGS="--rocksdb.cache.ttl=30m --rocksdb.cache.clean-on-start=false"
+EXTRA_ARGS=""
+
+# 如需指定 JDK（例如服务器装了多个版本）
+# JAVA_BIN="/usr/lib/jvm/java-21-openjdk-amd64/bin/java"
+
+# ------------------------- 部署 -------------------------
+# 部署分支，留空表示当前分支
+BRANCH=""
+GIT_REMOTE="origin"
+# 保留最近多少个版本目录
+KEEP_RELEASES=5
+# Gradle 构建参数（服务器内存较小时保持 --no-daemon）
+BUILD_TASK="clean bootJar"
+GRADLE_EXTRA_ARGS="--no-daemon -x test"
+
+# ------------------------- 健康检查 -------------------------
+HEALTH_PATH="/api/categories"
+HEALTH_TIMEOUT=90
+HEALTH_INTERVAL=2
+STOP_TIMEOUT=30

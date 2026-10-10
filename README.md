@@ -46,6 +46,26 @@ java -jar build/libs/novel-browse.jar
 
 服务默认监听 `http://localhost:8080`，接口前缀 `/api`。H2 控制台：`http://localhost:8080/h2-console`（JDBC URL `jdbc:h2:mem:noveldb`，账号 `sa`）。
 
+## 服务器部署
+
+面向 Ubuntu 服务器（源码放 `~/source/novel-browse`，部署产物放 `~/apps/novel-browse`）的脚本位于 [`scripts/`](scripts/README.md)：
+
+```bash
+# 首次部署
+sudo apt install -y openjdk-21-jdk-headless git curl
+cd ~/source/novel-browse && chmod +x scripts/*.sh
+cp scripts/deploy.conf.example scripts/deploy.conf   # 可选：改端口 / JVM 参数 / 分支
+./scripts/deploy.sh                                  # 拉码 → 构建 → 发布 → 重启 → 健康检查
+./scripts/install-service.sh                         # 可选：交给 systemd 托管
+
+# 日常运维
+./scripts/deploy.sh                 # 部署最新代码（健康检查失败自动回滚）
+./scripts/deploy.sh --rollback      # 回滚到上一个版本
+./scripts/app.sh status|restart|log|releases
+```
+
+详见 [scripts/README.md](scripts/README.md)。
+
 ## REST 接口
 
 | 方法 | 路径 | 说明 |
