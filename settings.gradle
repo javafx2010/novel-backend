@@ -1,0 +1,24 @@
+pluginManagement {
+    repositories {
+        maven {
+            url 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/'
+            name 'tencent-maven-public'
+        }
+        // Spring Boot / dependency-management 插件标记只在插件门户发布，作为兜底
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        maven {
+            url 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/'
+            name 'tencent-maven-public'
+        }
+        // 镜像同步存在延迟时，缺失的构件回落到中央仓库
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'novel-browse'
