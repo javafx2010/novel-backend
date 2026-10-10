@@ -7,27 +7,27 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * RocksDB 缓存配置，前缀 {@code rocksdb.cache}。
+ * RocksDB cache settings, prefix {@code rocksdb.cache}.
  */
 @ConfigurationProperties(prefix = "rocksdb.cache")
 public class RocksDbCacheProperties {
 
-    /** 是否启用 RocksDB 缓存 */
+    /** Whether the RocksDB cache is enabled */
     private boolean enabled = true;
 
-    /** 数据目录 */
+    /** Data directory */
     private String path = "./.rocksdb-cache";
 
-    /** 统一过期时间，0 表示永不过期 */
+    /** Unified TTL, 0 means never expire */
     private Duration ttl = Duration.ofMinutes(10);
 
-    /** 启动时是否清空缓存（内存库重启会重新种子，故默认清空） */
+    /** Whether to clear the cache on startup (the in-memory database is re-seeded on restart, so it defaults to true) */
     private boolean cleanOnStart = true;
 
-    /** 需要预建的缓存名称 */
+    /** Cache names to create up front */
     private List<String> names = new ArrayList<>();
 
-    /** 写缓冲大小，单位 MB */
+    /** Write buffer size in MB */
     private int writeBufferSizeMb = 8;
 
     public boolean isEnabled() {

@@ -7,7 +7,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 目录中的章节条目（不含正文）。
+ * Chapter entry in the table of contents (without content).
  */
 public record ChapterItem(Long id, Integer no, String title, Integer wordCount,
                           LocalDateTime createdAt) implements Serializable {

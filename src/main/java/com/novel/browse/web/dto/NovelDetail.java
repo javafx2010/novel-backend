@@ -7,7 +7,7 @@ import java.io.Serializable;
 import java.util.List;
 
 /**
- * 书籍详情：摘要信息 + 首/末章节 + 部分目录。
+ * Book detail: summary plus the first/last chapter and part of the table of contents.
  */
 public record NovelDetail(NovelSummary novel, ChapterItem firstChapter, ChapterItem lastChapter,
                           List<ChapterItem> chapters, List<NovelSummary> related) implements Serializable {

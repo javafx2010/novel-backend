@@ -7,7 +7,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 小说章节。
+ * Novel chapter.
  */
 @Entity
 @Table(name = "nb_chapter", uniqueConstraints = {

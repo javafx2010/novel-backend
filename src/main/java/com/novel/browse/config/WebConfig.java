@@ -9,7 +9,7 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * 前后端分离：配置跨域，允许独立的前端工程（Vite 等）直接调用本服务。
+ * Separated frontend and backend: configures CORS so a standalone frontend (Vite etc.) can call this service directly.
  */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
@@ -23,7 +23,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Value("${app.cors.allow-credentials:false}")
     private boolean allowCredentials;
 
-    /** 后台管理接口鉴权令牌，留空表示不校验 */
+    /** Admin API token, blank means no check */
     @Value("${app.admin.token:}")
     private String adminToken;
 
@@ -32,7 +32,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         if (adminToken == null || adminToken.isBlank()) {
-            log.warn("未配置 app.admin.token，后台管理接口（/admin/**）不做鉴权，建议生产环境配置");
+            log.warn("app.admin.token is not configured, admin APIs (/admin/**) are not authenticated; configure it in production");
         }
         registry.addInterceptor(new AdminTokenInterceptor(adminToken))
                 .addPathPatterns("/admin/**");

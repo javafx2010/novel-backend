@@ -6,7 +6,7 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 分类信息。
+ * Category information.
  */
 public record CategoryDto(Long id, String name, String description, Integer sortNo) implements Serializable {
 

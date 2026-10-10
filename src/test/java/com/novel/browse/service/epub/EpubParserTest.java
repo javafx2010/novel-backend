@@ -32,7 +32,7 @@ class EpubParserTest {
         assertEquals(2, book.chapters().size());
         assertEquals("第一章 初见", book.chapters().get(0).title());
         assertTrue(book.chapters().get(0).text().contains("山门前的少年提着木剑。"));
-        // 标题不应在正文中重复出现
+        // The title must not be repeated at the beginning of the content
         assertTrue(!book.chapters().get(0).text().startsWith("第一章"));
         assertTrue(book.wordCount() > 0);
     }
@@ -65,7 +65,7 @@ class EpubParserTest {
     void rejectNonEpubZip() {
         byte[] plain = zip(entry("a.txt", "hello"));
         BadRequestException e = assertThrows(BadRequestException.class, () -> parser.parse(plain, "plain.epub"));
-        assertTrue(e.getMessage().contains("不是合法的 EPUB"));
+        assertTrue(e.getMessage().contains("Not a valid EPUB"), e.getMessage());
     }
 
     @Test
@@ -76,7 +76,7 @@ class EpubParserTest {
     }
 
     // ------------------------------------------------------------------
-    // 测试用 EPUB 构造
+    // Builds EPUB archives for the tests
     // ------------------------------------------------------------------
 
     private static String container(String opfPath) {

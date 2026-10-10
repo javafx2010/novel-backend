@@ -32,4 +32,7 @@ public interface NovelRepository extends JpaRepository<Novel, Long> {
     List<Novel> findTop6ByCategoryAndIdNotOrderByViewCountDesc(Category category, Long novelId);
 
     long countByCategory(Category category);
+
+    /** Whether this EPUB (by content hash) was already imported, used to deduplicate uploads and startup scans */
+    boolean existsBySourceHash(String sourceHash);
 }

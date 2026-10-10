@@ -21,8 +21,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * RocksDB 缓存管理器：所有缓存共享一个 RocksDB 实例（按 key 前缀隔离），
- * 不存在则会按需创建，应用关闭时释放 native 资源。
+ * RocksDB cache manager: all caches share one RocksDB instance (isolated by key prefix),
+ * caches are created on demand and native resources are released on shutdown.
  */
 public class RocksDbCacheManager implements CacheManager, DisposableBean {
 
@@ -41,7 +41,7 @@ public class RocksDbCacheManager implements CacheManager, DisposableBean {
         RocksDB.loadLibrary();
         File dir = new File(properties.getPath());
         if (!dir.exists() && !dir.mkdirs() && !dir.isDirectory()) {
-            throw new IllegalStateException("无法创建 RocksDB 数据目录：" + dir.getAbsolutePath());
+            throw new IllegalStateException("Cannot create the RocksDB data directory: " + dir.getAbsolutePath());
         }
         this.options = new Options()
                 .setCreateIfMissing(true)
@@ -51,14 +51,14 @@ public class RocksDbCacheManager implements CacheManager, DisposableBean {
         try {
             this.db = RocksDB.open(options, dir.getAbsolutePath());
         } catch (Exception e) {
-            throw new IllegalStateException("打开 RocksDB 失败：" + dir.getAbsolutePath(), e);
+            throw new IllegalStateException("Failed to open RocksDB: " + dir.getAbsolutePath(), e);
         }
 
         loadCaches(properties.getNames() == null ? List.of() : properties.getNames());
-        log.info("RocksDB 缓存已启用：path={}，ttl={}ms，缓存数={}", dir.getAbsolutePath(), ttlMillis, caches.size());
+        log.info("RocksDB cache enabled: path={}, ttl={}ms, caches={}", dir.getAbsolutePath(), ttlMillis, caches.size());
     }
 
-    /** 预建配置中声明的缓存 */
+    /** Caches declared in the pre-create configuration */
     private void loadCaches(Collection<String> names) {
         if (cleanOnStart) {
             purgeAll();
@@ -82,23 +82,23 @@ public class RocksDbCacheManager implements CacheManager, DisposableBean {
         return Collections.unmodifiableSet(new java.util.TreeSet<>(caches.keySet()));
     }
 
-    /** 未预先声明的缓存名按需创建 */
+    /** Cache names not declared up front are created on demand */
     private Cache getMissingCache(String name) {
         return caches.computeIfAbsent(name, n -> new RocksDbCache(n, db, ttlMillis));
     }
 
-    /** 清空整个 RocksDB 实例（启动时用于对齐内存库重新种子的数据） */
+    /** Clears the whole RocksDB instance (used at startup to match the re-seeded in-memory database) */
     private void purgeAll() {
         try (RocksIterator iterator = db.newIterator()) {
             for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
                 db.delete(iterator.key());
             }
         } catch (Exception e) {
-            log.error("清空 RocksDB 缓存失败", e);
+            log.error("Failed to clear the RocksDB cache", e);
         }
     }
 
-    /** 各缓存的统计信息 */
+    /** Statistics of every cache */
     public List<RocksDbCache.CacheStats> stats() {
         List<RocksDbCache.CacheStats> stats = new ArrayList<>();
         for (Cache cache : caches.values()) {
@@ -109,7 +109,7 @@ public class RocksDbCacheManager implements CacheManager, DisposableBean {
         return stats;
     }
 
-    /** 缓存概览，包含 RocksDB 实例路径等 */
+    /** Cache overview, including the RocksDB instance path */
     public Map<String, Object> info() {
         Map<String, Object> info = new LinkedHashMap<>();
         info.put("ttlMillis", ttlMillis);
@@ -127,14 +127,14 @@ public class RocksDbCacheManager implements CacheManager, DisposableBean {
         try {
             db.syncWal();
         } catch (Exception e) {
-            log.warn("RocksDB WAL 同步失败", e);
+            log.warn("Failed to sync the RocksDB WAL", e);
         }
         db.close();
         options.close();
-        log.info("RocksDB 缓存已关闭");
+        log.info("RocksDB cache disabled");
     }
 
-    /** key 前缀，便于排查；保留给外部工具使用 */
+    /** Key prefix, kept for troubleshooting and external tools */
     static byte[] prefixOf(String name) {
         return (name + ":").getBytes(StandardCharsets.UTF_8);
     }

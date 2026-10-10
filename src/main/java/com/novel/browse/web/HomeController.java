@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 首页聚合、分类书库、排行榜、搜索（REST 接口）。
+ * Home aggregates, category library, ranking and search (REST APIs).
  */
 @RestController
 public class HomeController {
@@ -33,7 +33,7 @@ public class HomeController {
         this.chapterService = chapterService;
     }
 
-    /** 首页聚合数据 */
+    /** Home page aggregates */
     @GetMapping("/home")
     public HomeVo home() {
         List<Novel> recommends = novelService.recommendList();
@@ -50,19 +50,19 @@ public class HomeController {
                 toUpdates(latest));
     }
 
-    /** 全部分类 */
+    /** All categories */
     @GetMapping("/categories")
     public List<CategoryDto> categories() {
         return novelService.listCategories().stream().map(CategoryDto::of).toList();
     }
 
-    /** 分类详情 */
+    /** Category detail */
     @GetMapping("/categories/{id}")
     public CategoryDto category(@PathVariable Long id) {
         return CategoryDto.of(novelService.getCategory(id));
     }
 
-    /** 分类书库，sort 支持 hot(人气) / update(更新) */
+    /** Category library, sort supports hot(popularity) / update(recency) */
     @GetMapping("/categories/{id}/novels")
     public PageResult<NovelSummary> novelsOfCategory(@PathVariable Long id,
                                                      @RequestParam(defaultValue = DEFAULT_SORT) String sort,
@@ -72,7 +72,7 @@ public class HomeController {
         return PageResult.of(novelService.pageByCategory(category, sort, page, size), NovelSummary::of);
     }
 
-    /** 全站书籍列表，可按分类筛选 */
+    /** All novels, filterable by category */
     @GetMapping("/novels")
     public PageResult<NovelSummary> novels(@RequestParam(required = false) Long categoryId,
                                            @RequestParam(defaultValue = DEFAULT_SORT) String sort,
@@ -87,7 +87,7 @@ public class HomeController {
         return PageResult.of(novels, NovelSummary::of);
     }
 
-    /** 排行榜，type 支持 hot(人气) / rating(评分) */
+    /** Ranking, type supports hot(popularity) / rating(score) */
     @GetMapping("/rank")
     public PageResult<NovelSummary> rank(@RequestParam(defaultValue = "hot") String type,
                                          @RequestParam(defaultValue = "0") int page,
@@ -95,7 +95,7 @@ public class HomeController {
         return PageResult.of(novelService.rankPage(type, page, size), NovelSummary::of);
     }
 
-    /** 关键词搜索：书名 / 作者 / 标签 */
+    /** Keyword search: title / author / tags */
     @GetMapping("/search")
     public PageResult<NovelSummary> search(@RequestParam(value = "q", required = false) String keyword,
                                            @RequestParam(defaultValue = "0") int page,

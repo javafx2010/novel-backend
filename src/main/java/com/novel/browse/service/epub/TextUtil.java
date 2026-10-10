@@ -1,12 +1,12 @@
 package com.novel.browse.service.epub;
 
 /**
- * 文本处理小工具：字数统计与长度截断。
+ * Small text helpers: word counting and length truncation.
  */
 public final class TextUtil {
 
     /**
-     * 字数统计：与演示数据保持一致，按非空白字符计数（中日韩文字与英文单词内的字符均计入）。
+     * Word count: consistent with the demo data, counts non-whitespace characters (CJK ideographs and characters inside English words included).
      */
     public static long wordCount(CharSequence text) {
         if (text == null) {
@@ -21,7 +21,7 @@ public final class TextUtil {
         return count;
     }
 
-    /** 按字符截断，超长时保留前 max 个字符 */
+    /** Truncates by characters, keeps the first max characters */
     public static String truncate(String text, int max) {
         if (text == null) {
             return null;
@@ -29,7 +29,7 @@ public final class TextUtil {
         return text.length() <= max ? text : text.substring(0, max);
     }
 
-    /** 归一化空白：换行最多保留两个，去掉行尾空格 */
+    /** Normalizes whitespace: at most two consecutive line breaks, no trailing spaces */
     public static String normalize(String text) {
         if (text == null) {
             return "";

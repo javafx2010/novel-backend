@@ -1,20 +1,22 @@
 package com.novel.browse.cache;
 
 /**
- * 缓存名称常量。
+ * Cache name constants.
  */
 public final class CacheNames {
 
-    /** 首页聚合列表（热门、推荐、最近更新） */
+    /** Home page aggregates (hot, featured, latest) */
     public static final String HOME_LIST = "novel-home-list";
-    /** 小说详情 */
+    /** Novel detail */
     public static final String NOVEL_DETAIL = "novel-detail";
-    /** 章节正文（按章节 id） */
+    /** Chapter content (by chapter id) */
     public static final String CHAPTER = "novel-chapter";
-    /** 章节正文（按小说 id + 章节号） */
+    /** Chapter content (by novel id + chapter number) */
     public static final String CHAPTER_NO = "novel-chapter-no";
-    /** 小说章节列表 */
+    /** Novel chapter list */
     public static final String CHAPTER_LIST = "novel-chapter-list";
+    /** API signature nonce (replay protection) */
+    public static final String SIGNATURE_NONCE = "signature-nonce";
 
     private CacheNames() {
     }

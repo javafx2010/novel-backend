@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 列表场景下的书籍摘要。
+ * Book summary used in list views.
  */
 public record NovelSummary(Long id, String title, String author, String description,
                            Long categoryId, String categoryName, String coverColor, String coverMark,

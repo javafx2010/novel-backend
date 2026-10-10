@@ -10,6 +10,7 @@ import com.novel.browse.repository.NovelRepository;
 import com.novel.browse.service.epub.EpubBook;
 import com.novel.browse.service.epub.EpubChapter;
 import com.novel.browse.service.epub.EpubParser;
+import com.novel.browse.service.epub.EpubStorage;
 import com.novel.browse.service.epub.TextUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,22 +20,26 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 后台管理：EPUB 上传入库、书目删除与列表。
+ * Admin: EPUB upload (source file stored on disk), startup directory scan import, novel deletion and listing.
  * <p>
- * 写入时在同一事务内维护小说的章节数、字数与更新时间，并让受影响的缓存失效，
- * 保证前台首页 / 详情 / 章节读到的是最新数据。
+ * Writes keep chapter count, word count and update time in a single transaction and evict the affected caches,
+ * so the home page, detail page and chapters always read fresh data.
  */
 @Service
 public class AdminService {
 
     private static final Logger log = LoggerFactory.getLogger(AdminService.class);
 
-    /** 上传书籍默认封面配色（无图片资源，沿用渐变色 + 首字方案） */
+    /** Default cover colors for uploaded books (no image resources, gradient plus first character) */
     private static final String[] COVER_COLORS = {
             "linear-gradient(135deg,#6a8cff,#8f6cff)",
             "linear-gradient(135deg,#ff7a59,#ffb26b)",
@@ -45,40 +50,117 @@ public class AdminService {
     };
 
     private final EpubParser epubParser;
+    private final EpubStorage epubStorage;
     private final NovelRepository novelRepository;
     private final ChapterRepository chapterRepository;
     private final CategoryRepository categoryRepository;
 
     public AdminService(EpubParser epubParser,
+                        EpubStorage epubStorage,
                         NovelRepository novelRepository,
                         ChapterRepository chapterRepository,
                         CategoryRepository categoryRepository) {
         this.epubParser = epubParser;
+        this.epubStorage = epubStorage;
         this.novelRepository = novelRepository;
         this.chapterRepository = chapterRepository;
         this.categoryRepository = categoryRepository;
     }
 
     /**
-     * 上传 EPUB 并入库。
+     * Uploads an EPUB: store on disk, then parse, then persist.
      *
-     * @param data       EPUB 字节内容
-     * @param fileName   原始文件名（用于默认标题与错误信息）
-     * @param categoryId 分类 id
-     * @param status     连载状态（空则为 ONGOING）
-     * @param tags       标签（空则取 EPUB 的 dc:subject）
+     * @param data       raw EPUB content
+     * @param fileName   original file name
+     * @param categoryId category id
+     * @param status     serialization status (ONGOING when blank)
+     * @param tags       tags (falls back to the EPUB dc:subject when blank)
      */
     @Transactional
     @CacheEvict(cacheNames = CacheNames.HOME_LIST, allEntries = true)
-    public Novel importEpub(byte[] data, String fileName, Long categoryId, String status, String tags) {
-        EpubBook book = epubParser.parse(data, fileName);
+    public Novel upload(byte[] data, String fileName, Long categoryId, String status, String tags) {
+        String hash = epubStorage.sha256(data);
+        if (novelRepository.existsBySourceHash(hash)) {
+            throw new BadRequestException("This EPUB was already imported (content hash " + hash.substring(0, 8) + ")");
+        }
         Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new NotFoundException("分类不存在：id=" + categoryId));
+                .orElseThrow(() -> new NotFoundException("Category not found: id=" + categoryId));
+
+        // Store under the category directory: data/epub/<category>/<hash>-<original name>.epub
+        String savedPath = epubStorage.save(data, fileName, category.getName());
+        try {
+            Novel novel = createNovel(data, fileName, category, status, tags);
+            novel.setSourceFile(savedPath);
+            novel.setSourceHash(hash);
+            return novelRepository.save(novel);
+        } catch (RuntimeException e) {
+            // On parse or persistence failure remove the stored file so the next startup scan does not import it again
+            epubStorage.delete(savedPath);
+            throw e;
+        }
+    }
+
+    /**
+     * Imports an EPUB file from disk (used by the startup scan, no deduplication here).
+     *
+     * @param file     EPUB file
+     * @param hash     content hash computed by the caller, stored in source_hash
+     * @param category owning category
+     */
+    @Transactional
+    @CacheEvict(cacheNames = CacheNames.HOME_LIST, allEntries = true)
+    public Novel importFile(Path file, String hash, Category category, String status) {
+        byte[] data;
+        try {
+            data = Files.readAllBytes(file);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read the EPUB: " + file, e);
+        }
+        Novel novel = createNovel(data, file.getFileName().toString(), category, status, null);
+        novel.setSourceFile(epubStorage.relative(file));
+        novel.setSourceHash(hash);
+        return novelRepository.save(novel);
+    }
+
+    /** Admin novel list: newest update first */
+    @Transactional(readOnly = true)
+    public List<Novel> listNovels() {
+        return novelRepository.findAll(Sort.by(Sort.Direction.DESC, "updatedAt"));
+    }
+
+    /** Deletes a novel with its chapters and removes the source EPUB from disk */
+    @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.HOME_LIST, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.NOVEL_DETAIL, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.CHAPTER_LIST, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.CHAPTER, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.CHAPTER_NO, allEntries = true)
+    })
+    public void deleteNovel(Long id) {
+        Novel novel = novelRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Novel not found: id=" + id));
+        int removed = chapterRepository.deleteByNovelId(id);
+        novelRepository.delete(novel);
+        String sourceFile = novel.getSourceFile();
+        if (sourceFile != null && !sourceFile.isBlank()) {
+            epubStorage.delete(sourceFile);
+        }
+        log.info("Deleted novel: id={} title={} chapters={} sourceFile={}", id, novel.getTitle(), removed,
+                sourceFile == null ? "none" : sourceFile);
+    }
+
+    /**
+     * Parses the EPUB and builds the novel with its chapters: maintains chapter count, word count, cover and tags.
+     * The caller sets the source file information and persists the result.
+     */
+    private Novel createNovel(byte[] data, String fileName, Category category, String status, String tags) {
+        EpubBook book = epubParser.parse(data, fileName);
 
         String title = defaultIfBlank(book.title(), defaultTitle(fileName));
         Novel novel = new Novel();
         novel.setTitle(TextUtil.truncate(title, 128));
-        novel.setAuthor(TextUtil.truncate(defaultIfBlank(book.author(), "佚名"), 64));
+        novel.setAuthor(TextUtil.truncate(defaultIfBlank(book.author(), "Unknown"), 64));
         novel.setCategory(category);
         novel.setCoverColor(COVER_COLORS[Math.abs(title.hashCode()) % COVER_COLORS.length]);
         novel.setCoverMark(coverMark(title));
@@ -114,31 +196,8 @@ public class AdminService {
 
         Novel saved = novelRepository.save(novel);
         chapterRepository.saveAll(chapters);
-        log.info("EPUB 入库完成：id={} 标题「{}」 章节={} 字数={}", saved.getId(), saved.getTitle(), chapters.size(), words);
+        log.info("EPUB imported: id={} title={} chapters={} words={}", saved.getId(), saved.getTitle(), chapters.size(), words);
         return saved;
-    }
-
-    /** 后台书目列表：按更新时间倒序 */
-    @Transactional(readOnly = true)
-    public List<Novel> listNovels() {
-        return novelRepository.findAll(Sort.by(Sort.Direction.DESC, "updatedAt"));
-    }
-
-    /** 删除书目及其章节，并让相关缓存整体失效 */
-    @Transactional
-    @Caching(evict = {
-            @CacheEvict(cacheNames = CacheNames.HOME_LIST, allEntries = true),
-            @CacheEvict(cacheNames = CacheNames.NOVEL_DETAIL, allEntries = true),
-            @CacheEvict(cacheNames = CacheNames.CHAPTER_LIST, allEntries = true),
-            @CacheEvict(cacheNames = CacheNames.CHAPTER, allEntries = true),
-            @CacheEvict(cacheNames = CacheNames.CHAPTER_NO, allEntries = true)
-    })
-    public void deleteNovel(Long id) {
-        Novel novel = novelRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("小说不存在：id=" + id));
-        int removed = chapterRepository.deleteByNovelId(id);
-        novelRepository.delete(novel);
-        log.info("删除书目：id={} 标题「{}」 章节={}", id, novel.getTitle(), removed);
     }
 
     private String coverMark(String title) {
@@ -147,7 +206,7 @@ public class AdminService {
                 return String.valueOf(c);
             }
         }
-        return "书";
+        return "B";
     }
 
     private String defaultTitle(String fileName) {
@@ -160,7 +219,7 @@ public class AdminService {
         if (dot > 0) {
             name = name.substring(0, dot);
         }
-        return name.isBlank() ? "未命名" : name;
+        return name.isBlank() ? "Untitled" : name;
     }
 
     private String defaultIfBlank(String value, String fallback) {

@@ -123,10 +123,36 @@ cp deploy.conf.example deploy.conf   # 可选：改端口 / JVM 参数 / 分支
 
 上传 EPUB 后自动解析并入库，无需手工录入章节：
 
-- 读取 zip → `META-INF/container.xml` 定位 OPF → 按 `spine` 顺序抽取正文章节
+- **分类 ↔ 磁盘子目录一一对应**：上传时按分类名建子目录，原文件落到 `app.upload.dir/<分类名>/<内容哈希前8位>-<原名>.epub`（默认 `./data/epub`，部署时为 `$APP_ROOT/data/epub`）
+- 按内容 SHA-256 去重：同一文件重复上传返回 400；**服务启动时扫描该目录**，未导入的 EPUB 自动入库（已导入的跳过）
+- 启动时同步双向映射：子目录名 → 自动创建同名分类（sortNo=999 排最后）；已有分类 → 补齐缺失的子目录。直接放在根目录的 EPUB 归入 `app.upload.default-category-name`（默认 `Imported`）
+- 解析：读取 zip → `META-INF/container.xml` 定位 OPF → 按 `spine` 顺序抽取正文章节
 - 元数据取自 OPF：`dc:title`、`dc:creator`、`dc:description`、`dc:subject`（作为标签）
 - 一个 spine 文档对应一章；单文档内含多个 `h1/h2` 且正文较长时，按标题再切分
 - 入库时在同一事务内写入章节数与字数，并让首页等受影响的缓存失效
+- 扫描导入的书籍归入 `app.upload.default-category-name`（默认 `Imported`，不存在时自动创建）；删除书目会同时删除磁盘上的 EPUB 原文件
+
+启动日志示例：
+
+目录结构（子目录即分类）：
+
+```text
+data/epub/
+├── 玄幻奇幻/
+│   └── 00acf714-登云帖.epub     ← 上传到「玄幻奇幻」分类
+├── 武侠修真/                     ← 手工建的目录，启动时自动建同名分类并导入
+│   └── 6e6e83a8-山海拾遗.epub
+└── book.epub                    ← 根目录文件，归入「Imported」
+```
+
+启动日志示例：
+
+```text
+EPUB 上传目录：/root/apps/novel-browse/data/epub
+分类目录已创建：武侠修真 → /root/apps/novel-browse/data/epub/武侠修真
+目录对应分类已创建：武侠修真（id=8）
+启动扫描目录完成：... —— 文件 3 个，新增 1 本，已存在 2 本，失败 0 本，耗时 64 ms
+```
 
 ```bash
 # 上传（categoryId 取自 /categories）
@@ -143,6 +169,39 @@ curl -X DELETE http://localhost:8080/admin/novels/9
 ```
 
 安全与限制：`app.admin.token` 留空时不校验（仅适合内网），配置后 `/admin/**` 需带 `X-Admin-Token`；单文件大小上限 `spring.servlet.multipart.max-file-size`（默认 60MB）。当前无账号体系，生产环境应在网关或防火墙层面限制来源。
+
+也可以直接按分类建目录、拷进 EPUB，再重启（或等下次启动），会自动建分类并导入：
+
+```bash
+mkdir -p ~/apps/novel-browse/data/epub/武侠修真
+cp ~/books/*.epub ~/apps/novel-browse/data/epub/武侠修真/
+```
+
+## 接口签名
+
+所有接口可开启 HMAC-SHA256 签名校验（`app.signature.*`），**密钥为空时不校验**，本地与前端无需改动。
+
+```text
+待签名串：METHOD \n requestURI \n timestamp \n nonce \n bodySha256(小写十六进制)
+签名    ：小写十六进制 HMAC-SHA256(secret, 待签名串)
+请求头  ：X-App-Key / X-Timestamp（秒）/ X-Nonce / X-Signature
+```
+
+- 时间偏差超过 `app.signature.time-window-seconds`（默认 300 秒）拒绝
+- `X-Nonce` 只生效一次（存于 `signature-nonce` 缓存，防重放）
+- multipart 上传按空 body 哈希签名；`OPTIONS` 预检不校验；`app.signature.exclude-paths` 可配免签路径
+
+```bash
+# 生成签名并调用（示例）
+ts=$(date +%s); nonce=$RANDOM
+body=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855   # 空 body 的 sha256
+sig=$(printf 'GET\n/categories\n%s\n%s\n%s' "$ts" "$nonce" "$body" \
+      | openssl dgst -sha256 -hmac "$APP_SIGNATURE_SECRET" -hex | awk '{print $NF}')
+curl -H "X-App-Key: $APP_SIGNATURE_KEY" -H "X-Timestamp: $ts" \
+     -H "X-Nonce: $nonce" -H "X-Signature: $sig" http://localhost:8080/categories
+```
+
+校验失败返回 `401` + `ApiError`（`message` 说明具体原因）。
 
 ## 跨域
 

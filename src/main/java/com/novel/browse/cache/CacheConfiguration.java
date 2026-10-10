@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 缓存配置：默认注册 RocksDB 作为缓存实现。
+ * Cache configuration: registers RocksDB as the default cache implementation.
  */
 @Configuration
 @EnableCaching
@@ -22,7 +22,7 @@ public class CacheConfiguration {
     @Bean
     public CacheManager cacheManager(RocksDbCacheProperties properties) {
         if (!properties.isEnabled()) {
-            log.warn("RocksDB 缓存已关闭（rocksdb.cache.enabled=false），将使用无操作 CacheManager");
+            log.warn("RocksDB cache is disabled (rocksdb.cache.enabled=false), falling back to a no-op CacheManager");
             return new NoOpCacheManager();
         }
         return new RocksDbCacheManager(properties);

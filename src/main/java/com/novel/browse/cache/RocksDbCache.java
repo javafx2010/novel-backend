@@ -18,10 +18,10 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * 基于 RocksDB 实现的 {@link Cache}。
+ * {@link Cache} implementation backed by RocksDB.
  * <p>
- * 同一 RocksDB 实例内的 key 以 {@code 缓存名:} 作为前缀区分，条目以 JDK 序列化方式写入，
- * 读取时按 TTL 判定是否过期；过期或反序列化失败时按“未命中”处理，保证业务可用性优先于缓存。
+ * Keys inside one RocksDB instance are prefixed with {@code cacheName:}, entries are written with JDK serialization,
+ * and expire by TTL on read. Expired or corrupt entries count as a miss: availability wins over caching.
  */
 public class RocksDbCache implements Cache {
 
@@ -88,7 +88,7 @@ public class RocksDbCache implements Cache {
             return null;
         }
         if (type != null && !type.isInstance(value)) {
-            log.warn("缓存[{}] 类型不匹配：期望 {}，实际 {}，按未命中处理", name, type.getName(), value.getClass().getName());
+            log.warn("Cache[{}] type mismatch: expected {}, actual {}, handled as a miss", name, type.getName(), value.getClass().getName());
             evict(key);
             return null;
         }
@@ -105,10 +105,10 @@ public class RocksDbCache implements Cache {
             db.put(writeOptions, keyBytes(key), bytes);
             putCount.incrementAndGet();
         } catch (IOException e) {
-            // 不可序列化的对象直接降级为不缓存，不影响业务
-            log.warn("缓存[{}] 写入失败，已跳过：key={}，value={}", name, key, value.getClass().getName(), e);
+            // Objects that cannot be serialized are simply not cached, the business flow is unaffected
+            log.warn("Cache[{}] write failed, skipped: key={}, value={}", name, key, value.getClass().getName(), e);
         } catch (Exception e) {
-            log.error("缓存[{}] 写入异常：key={}", name, key, e);
+            log.error("Cache[{}] write error: key={}", name, key, e);
         }
     }
 
@@ -118,7 +118,7 @@ public class RocksDbCache implements Cache {
             db.delete(writeOptions, keyBytes(key));
             evictCount.incrementAndGet();
         } catch (Exception e) {
-            log.error("缓存[{}] 删除异常：key={}", name, key, e);
+            log.error("Cache[{}] delete error: key={}", name, key, e);
         }
     }
 
@@ -133,16 +133,16 @@ public class RocksDbCache implements Cache {
                 db.delete(writeOptions, iterator.key());
             }
         } catch (Exception e) {
-            log.error("缓存[{}] 清空异常", name, e);
+            log.error("Cache[{}] clear error", name, e);
         }
     }
 
-    /** 命中 / 未命中 / 写入 / 删除 计数 */
+    /** Hit / miss / write / delete counters */
     public CacheStats stats() {
         return new CacheStats(name, hitCount.get(), missCount.get(), putCount.get(), evictCount.get(), size());
     }
 
-    /** 当前未过期条目数 */
+    /** Number of entries that are not expired */
     public int size() {
         int size = 0;
         try (RocksIterator iterator = db.newIterator(readOptions)) {
@@ -169,13 +169,13 @@ public class RocksDbCache implements Cache {
         try {
             bytes = db.get(readOptions, keyBytes(key));
         } catch (Exception e) {
-            log.error("缓存[{}] 读取异常：key={}", name, key, e);
+            log.error("Cache[{}] read error: key={}", name, key, e);
             missCount.incrementAndGet();
             return null;
         }
         if (bytes == null) {
             missCount.incrementAndGet();
-            log.debug("缓存[{}] 未命中：key={}", name, key);
+            log.debug("Cache[{}] miss: key={}", name, key);
             return null;
         }
         CacheEntry entry = readEntry(bytes);
@@ -189,11 +189,11 @@ public class RocksDbCache implements Cache {
         if (isExpired(entry)) {
             missCount.incrementAndGet();
             evict(key);
-            log.debug("缓存[{}] 已过期：key={}", name, key);
+            log.debug("Cache[{}] expired: key={}", name, key);
             return null;
         }
         hitCount.incrementAndGet();
-        log.debug("缓存[{}] 命中：key={}", name, key);
+        log.debug("Cache[{}] hit: key={}", name, key);
         return entry.value;
     }
 
@@ -202,7 +202,7 @@ public class RocksDbCache implements Cache {
             Object obj = JdkCacheSerializer.deserialize(bytes);
             return obj instanceof CacheEntry entry ? entry : null;
         } catch (Exception e) {
-            log.warn("缓存[{}] 反序列化失败，按未命中处理", name, e);
+            log.warn("Cache[{}] deserialization failed, handled as a miss", name, e);
             return null;
         }
     }
@@ -225,15 +225,15 @@ public class RocksDbCache implements Cache {
         try {
             return "S:" + Base64.getUrlEncoder().encodeToString(JdkCacheSerializer.serialize(key));
         } catch (IOException e) {
-            throw JdkCacheSerializer.wrap("缓存 key 序列化失败", e);
+            throw JdkCacheSerializer.wrap("Failed to serialize the cache key", e);
         }
     }
 
-    /** 缓存条目，携带写入时间用于 TTL 判断 */
+    /** Cache entry, carries the write time used for TTL evaluation */
     private record CacheEntry(long createdAt, Object value) implements Serializable {
     }
 
-    /** 简单统计信息 */
+    /** Simple statistics */
     public record CacheStats(String name, long hits, long misses, long puts, long evictions, int size) {
 
         public double hitRate() {

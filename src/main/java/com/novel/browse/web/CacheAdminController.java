@@ -13,7 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * RocksDB 缓存运维接口：查看统计、清理缓存。
+ * RocksDB cache operations: statistics and cache clearing.
  */
 @RestController
 @RequestMapping("/cache")
@@ -25,7 +25,7 @@ public class CacheAdminController {
         this.cacheManager = cacheManager;
     }
 
-    /** 缓存概览与各缓存统计 */
+    /** Cache overview and per-cache statistics */
     @GetMapping
     public Map<String, Object> stats() {
         Map<String, Object> body = new LinkedHashMap<>();
@@ -37,7 +37,7 @@ public class CacheAdminController {
         return body;
     }
 
-    /** 清空指定缓存 */
+    /** Clears the given cache */
     @DeleteMapping("/{name}")
     public ResponseEntity<Map<String, Object>> clear(@PathVariable String name) {
         var cache = cacheManager.getCache(name);

@@ -40,6 +40,28 @@ app:
     # 后台管理接口（/admin/**）的简易鉴权令牌，请求头 X-Admin-Token
     # 留空表示不校验（仅适合本地与内网），生产环境请设置随机值
     token: ''
+  signature:
+    # 接口签名：HMAC-SHA256(secret, method \n uri \n timestamp \n nonce \n bodySha256)
+    # 请求头：X-App-Key / X-Timestamp（秒级时间戳）/ X-Nonce / X-Signature
+    # secret 留空或 enabled=false 时完全不校验（本地与前端无感知）
+    enabled: true
+    app-key: ''
+    secret: ''
+    # 允许的时间偏差（秒），超出即拒绝
+    time-window-seconds: 300
+    # 免签路径（Ant 模式）；启用签名后健康检查路径需放这里，否则部署脚本的健康检查会失败
+    exclude-paths: []
+  upload:
+    # 上传的 EPUB 原文件保存目录（部署脚本会传 $APP_ROOT/data/epub）
+    dir: './data/epub'
+    # 启动时扫描该目录，把未导入的 EPUB 自动入库
+    scan-on-start: true
+    # 直接放在上传目录根下的 EPUB 归入该分类（不存在则自动创建）
+    default-category-name: 'Imported'
+    # 启动时为已有分类补齐对应的磁盘子目录
+    ensure-category-dirs: true
+    # 扫描导入时的连载状态：FINISHED / ONGOING
+    default-status: 'FINISHED'
 
 # RocksDB 缓存
 rocksdb:

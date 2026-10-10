@@ -83,6 +83,7 @@ init_paths() {
     PID_FILE="$RUN_DIR/$APP_NAME.pid"
     LOG_FILE="$LOG_DIR/$APP_NAME.log"
     CACHE_DIR="$DATA_DIR/rocksdb-cache"
+    UPLOAD_DIR="$DATA_DIR/epub"
     ENV_FILE="$APP_ROOT/app.env"
 }
 
@@ -134,7 +135,7 @@ check_requirements() {
 }
 
 ensure_dirs() {
-    mkdir -p "$RELEASES_DIR" "$LOG_DIR" "$RUN_DIR" "$DATA_DIR" || die "创建部署目录失败：$APP_ROOT"
+    mkdir -p "$RELEASES_DIR" "$LOG_DIR" "$RUN_DIR" "$DATA_DIR" "$UPLOAD_DIR" || die "创建部署目录失败：$APP_ROOT"
 }
 
 # ---------------------------------------------------------------------------
@@ -360,6 +361,7 @@ render_template() {
         -e "s|@@JAVA_BIN@@|$(resolve_java_bin)|g" \
         -e "s|@@CURRENT_LINK@@|$CURRENT_LINK|g" \
         -e "s|@@CACHE_DIR@@|$CACHE_DIR|g" \
+        -e "s|@@UPLOAD_DIR@@|$UPLOAD_DIR|g" \
         -e "s|@@LOG_DIR@@|$LOG_DIR|g" \
         -e "s|@@LOG_FILE@@|$LOG_FILE|g" \
         -e "s|@@PORT@@|$PORT|g" \
@@ -369,7 +371,7 @@ render_template() {
 
 app_args() {
     local args
-    args="--server.port=$PORT --rocksdb.cache.path=$CACHE_DIR"
+    args="--server.port=$PORT --rocksdb.cache.path=$CACHE_DIR --app.upload.dir=$UPLOAD_DIR"
     [ -n "$SPRING_PROFILES_ACTIVE" ] && args="$args --spring.profiles.active=$SPRING_PROFILES_ACTIVE"
     [ -n "$EXTRA_ARGS" ] && args="$args $EXTRA_ARGS"
     printf '%s' "$args"
@@ -481,13 +483,32 @@ restart_app() {
     health_check
 }
 
+# SHA-256 of an empty body: the health check is a GET without payload
+EMPTY_BODY_SHA256="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+# 健康检查的签名头：配置了 APP_SIGNATURE_KEY / APP_SIGNATURE_SECRET 时自动生成
+# 签名串与服务端一致：METHOD \n uri \n timestamp \n nonce \n bodySha256
+signature_curl_args() {
+    local method="$1" uri="$2" ts nonce canonical sig
+    [ -n "${APP_SIGNATURE_SECRET:-}" ] || return 0
+    command -v openssl >/dev/null 2>&1 || return 0
+    ts=$(date +%s)
+    nonce="${ts}${$}${RANDOM}"
+    canonical=$(printf '%s\n%s\n%s\n%s\n%s' "$method" "$uri" "$ts" "$nonce" "$EMPTY_BODY_SHA256")
+    sig=$(printf '%s' "$canonical" | openssl dgst -sha256 -hmac "$APP_SIGNATURE_SECRET" -hex 2>/dev/null \
+        | awk '{print $NF}')
+    [ -n "$sig" ] || return 0
+    printf '%s' "-H X-App-Key:${APP_SIGNATURE_KEY:-} -H X-Timestamp:$ts -H X-Nonce:$nonce -H X-Signature:$sig"
+}
+
 health_check() {
     local url waited
     url="http://127.0.0.1:$PORT$HEALTH_PATH"
     log "健康检查：${url}（最长等待 ${HEALTH_TIMEOUT}s）"
     waited=0
     while [ "$waited" -lt "$HEALTH_TIMEOUT" ]; do
-        if curl -fsS --max-time 3 "$url" >/dev/null 2>&1; then
+        # shellcheck disable=SC2086
+        if curl -fsS --max-time 3 $(signature_curl_args GET "$HEALTH_PATH") "$url" >/dev/null 2>&1; then
             log "健康检查通过（耗时 ${waited}s）"
             return 0
         fi
@@ -527,7 +548,8 @@ status_app() {
     fi
     printf '日志文件   : %s\n' "$LOG_FILE"
     printf '缓存目录   : %s\n' "$CACHE_DIR"
-    if curl -fsS --max-time 3 "http://127.0.0.1:$PORT$HEALTH_PATH" >/dev/null 2>&1; then
+    # shellcheck disable=SC2086
+    if curl -fsS --max-time 3 $(signature_curl_args GET "$HEALTH_PATH") "http://127.0.0.1:$PORT$HEALTH_PATH" >/dev/null 2>&1; then
         printf '健康检查   : OK (%s%s)\n' "http://127.0.0.1:$PORT" "$HEALTH_PATH"
     else
         printf '健康检查   : FAILED (%s%s)\n' "http://127.0.0.1:$PORT" "$HEALTH_PATH"

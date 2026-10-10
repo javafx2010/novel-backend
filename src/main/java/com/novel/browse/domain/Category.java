@@ -6,7 +6,7 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 小说分类，如玄幻、都市、悬疑等。
+ * Novel category.
  */
 @Entity
 @Table(name = "nb_category")

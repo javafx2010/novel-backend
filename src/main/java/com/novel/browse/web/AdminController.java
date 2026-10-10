@@ -22,9 +22,9 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 后台管理接口：EPUB 上传（自动解析入库）、书目列表与删除。
+ * Admin APIs: EPUB upload (parsed and stored automatically), novel listing and deletion.
  * <p>
- * 生产环境建议开启 {@code app.admin.token}，或在网关 / 防火墙层面限制访问来源。
+ * In production, enable {@code app.admin.token} or restrict access at the gateway / firewall level.
  */
 @RestController
 @RequestMapping("/admin")
@@ -36,7 +36,7 @@ public class AdminController {
         this.adminService = adminService;
     }
 
-    /** 上传 EPUB：解析后自动创建书目与章节 */
+    /** Uploads an EPUB: parses it and creates the novel with its chapters */
     @PostMapping(value = "/novels", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public NovelSummary upload(@RequestPart("file") MultipartFile file,
@@ -44,17 +44,17 @@ public class AdminController {
                                @RequestParam(value = "status", required = false) String status,
                                @RequestParam(value = "tags", required = false) String tags) throws IOException {
         validateEpub(file);
-        Novel novel = adminService.importEpub(file.getBytes(), file.getOriginalFilename(), categoryId, status, tags);
+        Novel novel = adminService.upload(file.getBytes(), file.getOriginalFilename(), categoryId, status, tags);
         return NovelSummary.of(novel);
     }
 
-    /** 后台书目列表（按更新时间倒序） */
+    /** Admin novel list (newest update first) */
     @GetMapping("/novels")
     public List<NovelSummary> list() {
         return adminService.listNovels().stream().map(NovelSummary::of).toList();
     }
 
-    /** 删除书目及其章节 */
+    /** Deletes a novel and its chapters */
     @DeleteMapping("/novels/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
@@ -63,11 +63,11 @@ public class AdminController {
 
     private void validateEpub(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BadRequestException("上传文件为空");
+            throw new BadRequestException("The uploaded file is empty");
         }
         String name = file.getOriginalFilename() == null ? "" : file.getOriginalFilename();
         if (!name.toLowerCase(Locale.ROOT).endsWith(".epub")) {
-            throw new BadRequestException("只支持 EPUB 格式（.epub）：" + name);
+            throw new BadRequestException("Only EPUB files (.epub) are supported: " + name);
         }
     }
 }

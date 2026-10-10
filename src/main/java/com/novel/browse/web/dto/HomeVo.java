@@ -5,7 +5,7 @@ import java.io.Serializable;
 import java.util.List;
 
 /**
- * 首页聚合数据。
+ * Home page aggregates.
  */
 public record HomeVo(long totalNovels, List<CategoryDto> categories,
                      List<NovelSummary> recommends, List<NovelSummary> hot,
@@ -14,7 +14,7 @@ public record HomeVo(long totalNovels, List<CategoryDto> categories,
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** 最近更新书目及其最新章节标题 */
+    /** Recently updated novel with its latest chapter title */
     public record NovelUpdate(NovelSummary novel, ChapterItem latestChapter) implements Serializable {
 
         @Serial

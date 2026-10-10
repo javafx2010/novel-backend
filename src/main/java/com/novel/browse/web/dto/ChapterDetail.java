@@ -7,7 +7,7 @@ import java.io.Serializable;
 import java.util.List;
 
 /**
- * 章节正文阅读视图。
+ * Chapter content reading view.
  */
 public record ChapterDetail(Long id, Integer no, String title, Integer wordCount,
                             List<String> paragraphs, Long novelId, String novelTitle,

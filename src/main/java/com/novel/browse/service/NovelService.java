@@ -34,13 +34,13 @@ public class NovelService {
 
     public Category getCategory(Long id) {
         return categoryRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("分类不存在：id=" + id));
+                .orElseThrow(() -> new NotFoundException("Category not found: id=" + id));
     }
 
     @Cacheable(cacheNames = CacheNames.NOVEL_DETAIL, key = "#id")
     public Novel detail(Long id) {
         return novelRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("小说不存在：id=" + id));
+                .orElseThrow(() -> new NotFoundException("Novel not found: id=" + id));
     }
 
     @Transactional
@@ -51,25 +51,25 @@ public class NovelService {
         return novelRepository.save(novel);
     }
 
-    /** 热门榜单：按点击量排序 */
+    /** Hot ranking: ordered by view count */
     @Cacheable(cacheNames = CacheNames.HOME_LIST, key = "'hot'")
     public List<Novel> hotList() {
         return novelRepository.findTop10ByOrderByViewCountDesc();
     }
 
-    /** 精品推荐：按评分排序 */
+    /** Featured: ordered by rating */
     @Cacheable(cacheNames = CacheNames.HOME_LIST, key = "'recommend'")
     public List<Novel> recommendList() {
         return novelRepository.findTop8ByOrderByRatingDesc();
     }
 
-    /** 最近更新 */
+    /** Latest updates */
     @Cacheable(cacheNames = CacheNames.HOME_LIST, key = "'latest'")
     public List<Novel> latestUpdatedList() {
         return novelRepository.findTop8ByOrderByUpdatedAtDesc();
     }
 
-    /** 完本推荐 */
+    /** Completed novels recommendation */
     public Page<Novel> finishedPage(int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         return novelRepository.findByStatusOrderByViewCountDesc(Novel.STATUS_FINISHED, pageable);
@@ -83,7 +83,7 @@ public class NovelService {
         return novelRepository.findByCategoryOrderByViewCountDesc(category, pageable);
     }
 
-    /** 排行榜：默认按点击量排序，type=rating 时按评分排序 */
+    /** Ranking: ordered by view count by default, by rating when type=rating */
     public Page<Novel> rankPage(String type, int page, int size) {
         Sort sort = "rating".equalsIgnoreCase(type)
                 ? Sort.by(Sort.Direction.DESC, "rating", "viewCount")
@@ -98,7 +98,7 @@ public class NovelService {
         return novelRepository.search(keyword.trim(), PageRequest.of(page, size));
     }
 
-    /** 同分类推荐：排除自身 */
+    /** Same category recommendation: excludes the novel itself */
     @Cacheable(cacheNames = CacheNames.HOME_LIST, key = "'related:' + #novel.id + ':' + #limit")
     public List<Novel> relatedList(Novel novel, int limit) {
         if (novel.getId() == null || novel.getCategory() == null) {

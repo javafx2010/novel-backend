@@ -50,6 +50,10 @@ GRADLE_EXTRA_ARGS="--no-daemon -x test"
 # GRADLE_BIN="/usr/bin/gradle"
 
 # ------------------------- 健康检查 -------------------------
+# 接口签名：应用开启 app.signature.secret 后，健康检查会自动带签名头；
+# 也可把健康检查路径写进 app.signature.exclude-paths 免签，二者留其一
+# APP_SIGNATURE_KEY=""
+# APP_SIGNATURE_SECRET=""
 HEALTH_PATH="/categories"
 HEALTH_TIMEOUT=90
 HEALTH_INTERVAL=2

@@ -30,13 +30,13 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 /**
- * 轻量 EPUB 解析：读取 zip 包 → container.xml 定位 OPF → 按 spine 顺序抽取正文。
+ * Lightweight EPUB parser: read the zip, locate the OPF via container.xml, extract content in spine order.
  * <p>
- * 约定与取舍：
+ * Conventions and trade-offs:
  * <ul>
- *     <li>一个 spine 文档对应一章；若单文档内含有多个 h1/h2 且正文较长，按标题再切分</li>
- *     <li>正文字数为非空白字符数，与演示数据口径一致</li>
- *     <li>跳过空章节、非文本资源（图片、样式、ncx/nav 等）</li>
+ *     <li>One spine document is one chapter; a single document with several h1/h2 headings is split by heading</li>
+ *     <li>Word count is the number of non-whitespace characters, consistent with the demo data</li>
+ *     <li>Empty chapters and non-text resources (images, styles, ncx/nav) are skipped</li>
  * </ul>
  */
 @Component
@@ -44,11 +44,11 @@ public class EpubParser {
 
     private static final Logger log = LoggerFactory.getLogger(EpubParser.class);
 
-    /** 与 Chapter.content 列长度一致，超出部分截断 */
+    /** Matches the Chapter.content column length, longer content is truncated */
     private static final int MAX_CHAPTER_LENGTH = 200_000;
-    /** 单文档正文超过该长度且存在多个标题时才按标题切分 */
+    /** A single document is split by heading only when its content exceeds this length and has several headings */
     private static final int SPLIT_THRESHOLD = 3_000;
-    /** 换行符：段落之间空一行 */
+    /** Line separator: one blank line between paragraphs */
     private static final String PARAGRAPH_BREAK = "\n\n";
 
     private static final Pattern ENCODING = Pattern.compile("encoding\\s*=\\s*[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
@@ -57,10 +57,10 @@ public class EpubParser {
     private static final Pattern TAG = Pattern.compile("(?i)<[^>]+>");
 
     /**
-     * 解析 EPUB 字节内容。
+     * Parses raw EPUB content.
      *
-     * @param data     EPUB 文件内容
-     * @param fileName 原始文件名，仅用于错误信息
+     * @param data     EPUB file content
+     * @param fileName original file name, used for error messages only
      */
     public EpubBook parse(byte[] data, String fileName) {
         Map<String, byte[]> entries = readZip(data, fileName);
@@ -91,7 +91,7 @@ public class EpubParser {
             }
             byte[] raw = findEntry(entries, item.href());
             if (raw == null) {
-                log.warn("EPUB {} 中缺少 spine 引用的资源：{}", fileName, item.href());
+                log.warn("EPUB {} is missing a resource referenced by the spine: {}", fileName, item.href());
                 skipped++;
                 continue;
             }
@@ -99,10 +99,10 @@ public class EpubParser {
         }
 
         if (chapters.isEmpty()) {
-            throw new BadRequestException("未能从 EPUB 中解析出任何章节内容：" + fileName
-                    + "（spine 条目 " + spine.size() + " 个，跳过 " + skipped + " 个）");
+            throw new BadRequestException("No chapter content could be parsed from the EPUB: " + fileName
+                    + " (spine items: " + spine.size() + ", skipped: " + skipped + ")");
         }
-        log.info("EPUB 解析完成：{} —— 标题「{}」，作者「{}」，章节 {} 个，跳过 {} 项",
+        log.info("EPUB parsed: {} - title={}, author={}, chapters={}, skipped={}",
                 fileName, title, author, chapters.size(), skipped);
         return new EpubBook(title, author, description, language, subjects, chapters);
     }
@@ -122,15 +122,15 @@ public class EpubParser {
                 entries.putIfAbsent(entry.getName(), zin.readAllBytes());
             }
         } catch (IOException e) {
-            throw new BadRequestException("EPUB 文件无法解压（不是合法的 zip 包）：" + fileName);
+            throw new BadRequestException("Cannot unzip the EPUB (not a valid zip archive): " + fileName);
         }
         if (entries.isEmpty()) {
-            throw new BadRequestException("EPUB 文件为空或不是合法的 zip 包：" + fileName);
+            throw new BadRequestException("The EPUB is empty or not a valid zip archive: " + fileName);
         }
         return entries;
     }
 
-    /** zip 条目查找：先精确匹配，再按文件名兜底（兼容路径大小写与 URL 编码差异） */
+    /** Zip entry lookup: exact match first, then a fallback by file name (covers case and URL encoding differences) */
     private byte[] findEntry(Map<String, byte[]> entries, String href) {
         byte[] exact = entries.get(href);
         if (exact != null) {
@@ -173,12 +173,12 @@ public class EpubParser {
                 return name;
             }
         }
-        throw new BadRequestException("文件不是合法的 EPUB（缺少 META-INF/container.xml 与 .opf）：" + fileName);
+        throw new BadRequestException("Not a valid EPUB (missing META-INF/container.xml and .opf): " + fileName);
     }
 
     private org.w3c.dom.Document parseXml(byte[] data, String name, String fileName) {
         if (data == null) {
-            throw new BadRequestException("EPUB 内部文件缺失：" + name);
+            throw new BadRequestException("Missing file inside the EPUB: " + name);
         }
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -190,7 +190,7 @@ public class EpubParser {
             DocumentBuilder builder = factory.newDocumentBuilder();
             return builder.parse(new ByteArrayInputStream(data));
         } catch (Exception e) {
-            throw new BadRequestException("EPUB 内部 XML 解析失败：" + name + "（" + e.getMessage() + "）");
+            throw new BadRequestException("Failed to parse XML inside the EPUB: " + name + " (" + e.getMessage() + ")");
         }
     }
 
@@ -198,7 +198,7 @@ public class EpubParser {
         try {
             factory.setFeature(feature, value);
         } catch (Exception ignored) {
-            // 部分解析器不支持该特性，忽略即可
+            // Some parsers do not support this feature, safe to ignore
         }
     }
 
@@ -274,7 +274,7 @@ public class EpubParser {
         return idx < 0 ? "" : path.substring(0, idx + 1);
     }
 
-    /** 去掉路径中的 ./ 与 ../ 片段 */
+    /** Removes ./ and ../ segments from a path */
     private String normalizePath(String path) {
         String[] parts = path.split("/");
         StringBuilder sb = new StringBuilder();
@@ -298,7 +298,7 @@ public class EpubParser {
     }
 
     // ------------------------------------------------------------------
-    // 正文
+    // content
     // ------------------------------------------------------------------
 
     private List<EpubChapter> readChapters(byte[] raw, String href) {
@@ -307,7 +307,7 @@ public class EpubParser {
         try {
             doc = Jsoup.parse(new ByteArrayInputStream(raw), charset, "");
         } catch (IOException e) {
-            throw new BadRequestException("章节读取失败：" + href);
+            throw new BadRequestException("Failed to read chapter: " + href);
         }
         String docTitle = docTitle(doc, href);
         Element container = contentRoot(doc);
@@ -323,7 +323,7 @@ public class EpubParser {
         return List.of(new EpubChapter(docTitle, truncate(text)));
     }
 
-    /** 去掉与章节标题重复的开头标题元素，避免正文首行再出现一次标题 */
+    /** Removes a leading heading that duplicates the chapter title, so the title is not repeated in the content */
     private void dropLeadingTitle(Element container, String docTitle) {
         Element first = container.firstElementChild();
         if (first == null || docTitle == null) {
@@ -336,7 +336,7 @@ public class EpubParser {
         }
     }
 
-    /** 正文容器：body，若 body 只有单个 div 包裹则下潜一层 */
+    /** Content container: body, descends one level when body wraps a single div */
     private Element contentRoot(Document doc) {
         Element body = doc.body();
         if (body == null) {
@@ -407,7 +407,7 @@ public class EpubParser {
         if (text.length() <= MAX_CHAPTER_LENGTH) {
             return text;
         }
-        log.warn("章节内容超过 {} 字符，已截断", MAX_CHAPTER_LENGTH);
+        log.warn("Chapter content exceeds {} characters, truncated", MAX_CHAPTER_LENGTH);
         return TextUtil.normalize(text.substring(0, MAX_CHAPTER_LENGTH));
     }
 

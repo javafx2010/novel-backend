@@ -30,7 +30,7 @@ public class ChapterService {
         return chapterRepository.findFirstByNovelIdOrderByChapterNoAsc(novelId);
     }
 
-    /** 最新一章 */
+    /** Latest chapter */
     public Optional<Chapter> lastChapter(Long novelId) {
         return chapterRepository.findTopByNovelIdOrderByChapterNoDesc(novelId, PageRequest.of(0, 1))
                 .stream().findFirst();
@@ -39,13 +39,13 @@ public class ChapterService {
     @Cacheable(cacheNames = CacheNames.CHAPTER_NO, key = "#novelId + ':' + #chapterNo")
     public Chapter getByNo(Long novelId, Integer chapterNo) {
         return chapterRepository.findByNovelIdAndChapterNo(novelId, chapterNo)
-                .orElseThrow(() -> new NotFoundException("章节不存在：no=" + chapterNo));
+                .orElseThrow(() -> new NotFoundException("Chapter not found: no=" + chapterNo));
     }
 
     @Cacheable(cacheNames = CacheNames.CHAPTER, key = "#id")
     public Chapter getById(Long id) {
         return chapterRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("章节不存在：id=" + id));
+                .orElseThrow(() -> new NotFoundException("Chapter not found: id=" + id));
     }
 
     public Optional<Chapter> previous(Long novelId, Integer chapterNo) {

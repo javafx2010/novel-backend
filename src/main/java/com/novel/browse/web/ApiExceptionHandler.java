@@ -20,7 +20,7 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 import java.time.Instant;
 
 /**
- * REST 统一异常处理，返回 JSON 错误体。
+ * Unified REST exception handling, returns a JSON error body.
  */
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -37,7 +37,7 @@ public class ApiExceptionHandler {
             org.springframework.web.servlet.NoHandlerFoundException.class
     })
     public ResponseEntity<ApiError> handleNoResource(Exception e, HttpServletRequest request) {
-        return build(HttpStatus.NOT_FOUND, "Not Found", "接口不存在：" + request.getRequestURI(), request);
+        return build(HttpStatus.NOT_FOUND, "Not Found", "Endpoint not found: " + request.getRequestURI(), request);
     }
 
     @ExceptionHandler({
@@ -58,15 +58,15 @@ public class ApiExceptionHandler {
         return build(HttpStatus.UNAUTHORIZED, "Unauthorized", e.getMessage(), request);
     }
 
-    /** 上传文件超过 spring.servlet.multipart 限制 */
+    /** Upload exceeds the spring.servlet.multipart limit */
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiError> handleTooLarge(MaxUploadSizeExceededException e, HttpServletRequest request) {
-        return build(HttpStatus.PAYLOAD_TOO_LARGE, "Payload Too Large", "上传文件过大：" + e.getMessage(), request);
+        return build(HttpStatus.PAYLOAD_TOO_LARGE, "Payload Too Large", "Uploaded file is too large: " + e.getMessage(), request);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleException(Exception e, HttpServletRequest request) {
-        log.error("接口异常：{} {}", request.getMethod(), request.getRequestURI(), e);
+        log.error("Request failed: {} {}", request.getMethod(), request.getRequestURI(), e);
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", e.getMessage(), request);
     }
 

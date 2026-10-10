@@ -11,7 +11,7 @@ import java.io.ObjectOutputStream;
 import java.io.UncheckedIOException;
 
 /**
- * 缓存条目序列化：使用 JDK 原生序列化，缓存对象需实现 {@link java.io.Serializable}。
+ * Cache entry serialization: JDK native serialization, cached objects must implement {@link java.io.Serializable}.
  */
 final class JdkCacheSerializer {
 

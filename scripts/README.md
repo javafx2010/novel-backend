@@ -23,6 +23,7 @@
 ├── logs/novel-browse.log            # 运行日志
 ├── run/novel-browse.pid             # pid 文件（nohup 模式）
 ├── data/rocksdb-cache/              # RocksDB 缓存目录
+├── data/epub/                       # 上传的 EPUB 原文件：子目录名 = 分类名，启动时双向同步并自动导入
 └── app.env                          # systemd 模式下的运行参数
 ```
 
@@ -137,8 +138,10 @@ deploy.sh
 几点说明：
 
 - **构建与运存分离**：Gradle 构建需要额外内存，服务器内存紧张时可将 `GRADLE_EXTRA_ARGS` 中的 `-x test` 保留，并适当调小 `JAVA_OPTS`。
+- **数据目录**：`data/` 与发布版本目录解耦，不会因发版丢失。`--rocksdb.cache.path=$APP_ROOT/data/rocksdb-cache`（缓存）、`--app.upload.dir=$APP_ROOT/data/epub`（上传的 EPUB 原文件，启动时扫描自动导入）。
 - **RocksDB 目录**：启动参数显式传入 `--rocksdb.cache.path=$APP_ROOT/data/rocksdb-cache`，与源码目录解耦。因内存库每次重启都会重新生成数据，默认 `clean-on-start=true`，重启后缓存自动清空；如需保留可设置 `EXTRA_ARGS="--rocksdb.cache.clean-on-start=false"`。
 - **端口占用**：启动前会检测端口，被非本脚本管理的进程占用时直接报错退出（不触发回滚，避免误伤在跑的服务），可用 `sudo ss -ltnp | grep :8080` 排查。
+- **接口签名**：应用开启签名（`app.signature.secret`）后，脚本的健康检查会自动带签名头，只需在 `deploy.conf`（或 `app.env`）里配置 `APP_SIGNATURE_KEY` 与 `APP_SIGNATURE_SECRET`；也可以反过来把健康检查路径写进 `app.signature.exclude-paths` 免签。签名算法：`HMAC-SHA256(secret, "METHOD \n uri \n timestamp \n nonce \n bodySha256")`。
 - **systemd 模式**：`ExecStart` 中的 `${JAVA_OPTS}` 来自 `app.env`，修改 `JAVA_OPTS` 后需重新执行 `install-service.sh`（或直接编辑 `app.env` 后 `sudo systemctl restart novel-browse`）。
 - **日志**：应用使用 `logback-spring.xml`，默认输出到控制台；nohup 模式由脚本追加写入 `logs/novel-browse.log`，安装 systemd 时同步安装 logrotate（每日轮转、保留 14 份、copytruncate）。脚本启动时自动传 `-DLOG_DIR=$LOG_DIR`（即 `$APP_ROOT/logs`）。
 - **调整日志级别**：在 `deploy.conf` 里 `EXTRA_ARGS="--logging.level.com.novel.browse=DEBUG"`，或设置环境变量 `LOG_LEVEL_APP=DEBUG`（前者优先）。

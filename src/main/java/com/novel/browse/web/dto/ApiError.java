@@ -5,7 +5,7 @@ import java.io.Serializable;
 import java.time.Instant;
 
 /**
- * 统一错误响应体。
+ * Unified error response body.
  */
 public record ApiError(Instant timestamp, int status, String error, String message,
                        String path) implements Serializable {

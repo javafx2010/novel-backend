@@ -6,8 +6,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
- * 后台管理接口的简易鉴权：配置 {@code app.admin.token} 后，请求需携带 {@code X-Admin-Token}。
- * 未配置时不做校验（本地开发便利），生产建议配置。
+ * Simple authentication for admin APIs: when {@code app.admin.token} is configured, requests must carry {@code X-Admin-Token}.
+ * No check is performed when it is not configured (convenient for local development); configure it in production.
  */
 public class AdminTokenInterceptor implements HandlerInterceptor {
 
@@ -26,7 +26,7 @@ public class AdminTokenInterceptor implements HandlerInterceptor {
         }
         String provided = request.getHeader(HEADER);
         if (provided == null || !token.equals(provided.trim())) {
-            throw new UnauthorizedException("缺少或错误的 " + HEADER);
+            throw new UnauthorizedException("Missing or invalid " + HEADER);
         }
         return true;
     }

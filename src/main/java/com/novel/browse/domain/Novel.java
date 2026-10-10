@@ -8,7 +8,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 小说主表。
+ * Novel master table.
  */
 @Entity
 @Table(name = "nb_novel", indexes = {
@@ -20,9 +20,9 @@ public class Novel implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** 连载中 */
+    /** Serializing status */
     public static final String STATUS_ONGOING = "ONGOING";
-    /** 已完结 */
+    /** Completed status */
     public static final String STATUS_FINISHED = "FINISHED";
 
     @Id
@@ -39,11 +39,11 @@ public class Novel implements Serializable {
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
-    /** 封面渐变色，避免依赖外部图片资源 */
+    /** Cover gradient color, avoids depending on external image resources */
     @Column(length = 128)
     private String coverColor;
 
-    /** 封面显示的文字/符号 */
+    /** Character or symbol shown on the cover */
     @Column(length = 8)
     private String coverMark;
 
@@ -53,7 +53,7 @@ public class Novel implements Serializable {
     @Column(length = 16, nullable = false)
     private String status = STATUS_ONGOING;
 
-    /** 逗号分隔的标签 */
+    /** Comma separated tags */
     @Column(length = 128)
     private String tags;
 
@@ -61,7 +61,7 @@ public class Novel implements Serializable {
     @Column(nullable = false)
     private Long viewCount = 0L;
 
-    /** 评分，0 ~ 10 的一位小数 */
+    /** Rating from 0 to 10 with one decimal */
     @Column(nullable = false)
     private Double rating = 0.0;
 
@@ -77,9 +77,17 @@ public class Novel implements Serializable {
     @Column(nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();
 
+    /** Source EPUB file path relative to the upload directory; empty for manually created books */
+    @Column(name = "source_file", length = 255)
+    private String sourceFile;
+
+    /** SHA-256 of the source EPUB content, used to deduplicate upload and startup scan */
+    @Column(name = "source_hash", length = 64)
+    private String sourceHash;
+
     @Transient
     public String getStatusText() {
-        return STATUS_FINISHED.equals(status) ? "完结" : "连载";
+        return STATUS_FINISHED.equals(status) ? "Finished" : "Ongoing";
     }
 
     @Transient
@@ -208,5 +216,21 @@ public class Novel implements Serializable {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getSourceFile() {
+        return sourceFile;
+    }
+
+    public void setSourceFile(String sourceFile) {
+        this.sourceFile = sourceFile;
+    }
+
+    public String getSourceHash() {
+        return sourceHash;
+    }
+
+    public void setSourceHash(String sourceHash) {
+        this.sourceHash = sourceHash;
     }
 }

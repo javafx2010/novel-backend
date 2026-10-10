@@ -19,7 +19,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * 书籍详情、目录与章节阅读（REST 接口）。
+ * Book detail, table of contents and chapter reading (REST APIs).
  */
 @RestController
 @RequestMapping("/novels")
@@ -33,7 +33,7 @@ public class BookController {
         this.chapterService = chapterService;
     }
 
-    /** 书籍详情 + 最新章节 + 同类推荐 */
+    /** Book detail plus the latest chapter and similar recommendations */
     @GetMapping("/{id}")
     public NovelDetail detail(@PathVariable Long id,
                               @RequestParam(defaultValue = "10") int chapterPreview) {
@@ -49,14 +49,14 @@ public class BookController {
         return NovelDetail.of(novel, NovelSummary.of(novel), preview, related);
     }
 
-    /** 全部章节目录 */
+    /** Full table of contents */
     @GetMapping("/{id}/chapters")
     public List<ChapterItem> catalog(@PathVariable Long id) {
         Novel novel = novelService.detail(id);
         return chapterService.listByNovel(novel.getId()).stream().map(ChapterItem::of).toList();
     }
 
-    /** 分页章节目录 */
+    /** Paginated table of contents */
     @GetMapping("/{id}/chapter-page")
     public PageResult<ChapterItem> catalogPaged(@PathVariable Long id,
                                                 @RequestParam(defaultValue = "0") int page,
@@ -70,13 +70,13 @@ public class BookController {
                 page <= 0, to >= all.size());
     }
 
-    /** 按章节号阅读 */
+    /** Read by chapter number */
     @GetMapping("/{id}/chapters/{no}")
     public ChapterDetail readByNo(@PathVariable Long id, @PathVariable Integer no) {
         return toDetail(chapterService.getByNo(id, no));
     }
 
-    /** 按章节 id 阅读 */
+    /** Read by chapter id */
     @GetMapping("/chapters/{chapterId}")
     public ChapterDetail readById(@PathVariable Long chapterId) {
         return toDetail(chapterService.getById(chapterId));

@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.function.Function;
 
 /**
- * 统一分页返回结构。
+ * Unified paginated response.
  */
 public record PageResult<T>(List<T> content, int page, int size, long totalElements,
                             int totalPages, boolean first, boolean last) implements Serializable {
