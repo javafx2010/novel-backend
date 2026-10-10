@@ -6,8 +6,12 @@
 # 注意：deploy.conf 已加入 .gitignore，不会提交到仓库。
 
 # ------------------------- 路径 -------------------------
-# 源码目录（服务器上 git 仓库所在位置）
-SOURCE_DIR="$HOME/source/novel-browse"
+# 源码目录：默认自动探测，无需配置
+#   ~/source/scripts        与源码平级  → 取 ~/source/novel-browse
+#   <repo>/scripts          在仓库内    → 取 <repo>
+# 仅当目录结构特殊时才需显式指定：
+# SOURCE_DIR="$HOME/source/novel-browse"
+
 # 部署根目录：releases/ current/ logs/ run/ data/ 都在其下
 APP_ROOT="$HOME/apps/novel-browse"
 

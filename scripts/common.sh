@@ -5,15 +5,29 @@
 # 日志函数统一输出到 stderr，stdout 只保留数据结果，便于脚本之间组合。
 
 # ---------------------------------------------------------------------------
-# 基础路径
+# 基础路径与源码目录探测
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PARENT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# 源码目录自动探测，支持两种目录结构：
+#   1) scripts 与源码平级（服务器约定）：~/source/scripts + ~/source/novel-browse
+#   2) scripts 位于源码仓库内（本仓库默认）：<repo>/scripts
+# 也可在 deploy.conf 中直接指定 SOURCE_DIR 覆盖。
+default_source_dir() {
+    if [ -f "$PARENT_DIR/novel-browse/settings.gradle" ] || [ -x "$PARENT_DIR/novel-browse/gradlew" ]; then
+        printf '%s' "$PARENT_DIR/novel-browse"
+    elif [ -f "$PARENT_DIR/settings.gradle" ] || [ -x "$PARENT_DIR/gradlew" ]; then
+        printf '%s' "$PARENT_DIR"
+    else
+        printf '%s' "$PARENT_DIR/novel-browse"
+    fi
+}
 
 # ---------------------------------------------------------------------------
 # 默认配置（可被 scripts/deploy.conf、$APP_ROOT/deploy.conf 或环境变量覆盖）
 # ---------------------------------------------------------------------------
-: "${SOURCE_DIR:=$PROJECT_DIR}"                     # 源码目录（服务器示例：$HOME/source/novel-browse）
+: "${SOURCE_DIR:=$(default_source_dir)}"             # 源码目录（服务器示例：$HOME/source/novel-browse）
 : "${APP_ROOT:=$HOME/apps/novel-browse}"            # 部署根目录
 : "${APP_NAME:=novel-browse}"
 : "${PORT:=8080}"

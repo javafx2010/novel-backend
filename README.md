@@ -48,23 +48,31 @@ java -jar build/libs/novel-browse.jar
 
 ## 服务器部署
 
-面向 Ubuntu 服务器（源码放 `~/source/novel-browse`，部署产物放 `~/apps/novel-browse`）的脚本位于 [`scripts/`](scripts/README.md)：
+面向 Ubuntu 服务器的部署脚本位于 [`scripts/`](scripts/README.md)，服务器目录结构约定：
+
+```text
+~/source/
+├── novel-browse/       # 源码仓库
+└── scripts/            # 部署脚本（也支持放在仓库内 novel-browse/scripts）
+~/apps/novel-browse/    # 部署产物：releases/ current/ logs/ run/ data/
+```
 
 ```bash
 # 首次部署
 sudo apt install -y openjdk-21-jdk-headless git curl
-cd ~/source/novel-browse && chmod +x scripts/*.sh
-cp scripts/deploy.conf.example scripts/deploy.conf   # 可选：改端口 / JVM 参数 / 分支
-./scripts/deploy.sh                                  # 拉码 → 构建 → 发布 → 重启 → 健康检查
-./scripts/install-service.sh                         # 可选：交给 systemd 托管
+cd ~/source && git clone <仓库地址> novel-browse
+cp -r ~/source/novel-browse/scripts ~/source/scripts && cd ~/source/scripts
+cp deploy.conf.example deploy.conf   # 可选：改端口 / JVM 参数 / 分支
+./deploy.sh                          # 拉码 → 构建 → 发布 → 重启 → 健康检查
+./install-service.sh                 # 可选：交给 systemd 托管
 
 # 日常运维
-./scripts/deploy.sh                 # 部署最新代码（健康检查失败自动回滚）
-./scripts/deploy.sh --rollback      # 回滚到上一个版本
-./scripts/app.sh status|restart|log|releases
+./deploy.sh                 # 部署最新代码（健康检查失败自动回滚）
+./deploy.sh --rollback      # 回滚到上一个版本
+./app.sh status|restart|log|releases
 ```
 
-详见 [scripts/README.md](scripts/README.md)。
+源码目录会自动探测，无需手工配置 `SOURCE_DIR`。详见 [scripts/README.md](scripts/README.md)。
 
 ## REST 接口
 
