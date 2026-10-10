@@ -20,4 +20,7 @@ public interface ChapterRepository extends JpaRepository<Chapter, Long> {
     Optional<Chapter> findFirstByNovelIdAndChapterNoLessThanOrderByChapterNoDesc(Long novelId, Integer chapterNo);
 
     List<Chapter> findTopByNovelIdOrderByChapterNoDesc(Long novelId, Pageable pageable);
+
+    /** 删除某本书的全部章节，返回删除条数 */
+    int deleteByNovelId(Long novelId);
 }

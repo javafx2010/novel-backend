@@ -1,5 +1,6 @@
 package com.novel.browse.web;
 
+import com.novel.browse.service.BadRequestException;
 import com.novel.browse.service.NotFoundException;
 import com.novel.browse.web.dto.ApiError;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,6 +14,8 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import java.time.Instant;
 
@@ -39,13 +42,26 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler({
             MissingServletRequestParameterException.class,
+            MissingServletRequestPartException.class,
             MethodArgumentTypeMismatchException.class,
             MethodArgumentNotValidException.class,
             MethodValidationException.class,
-            IllegalArgumentException.class
+            IllegalArgumentException.class,
+            BadRequestException.class
     })
     public ResponseEntity<ApiError> handleBadRequest(Exception e, HttpServletRequest request) {
         return build(HttpStatus.BAD_REQUEST, "Bad Request", e.getMessage(), request);
+    }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<ApiError> handleUnauthorized(UnauthorizedException e, HttpServletRequest request) {
+        return build(HttpStatus.UNAUTHORIZED, "Unauthorized", e.getMessage(), request);
+    }
+
+    /** 上传文件超过 spring.servlet.multipart 限制 */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleTooLarge(MaxUploadSizeExceededException e, HttpServletRequest request) {
+        return build(HttpStatus.PAYLOAD_TOO_LARGE, "Payload Too Large", "上传文件过大：" + e.getMessage(), request);
     }
 
     @ExceptionHandler(Exception.class)

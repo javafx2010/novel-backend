@@ -10,6 +10,7 @@ Java / Spring Boot 编写的在线小说阅读网站后端。**前后端分离**
 | 框架 | Spring Boot 4.1.1（Web / Data JPA / Cache） |
 | 数据库 | H2 内存数据库（启动时建表并种子演示数据，进程退出即释放） |
 | 缓存 | RocksDB（`rocksdbjni`）本地嵌入式实现，自定义 `CacheManager` |
+| EPUB 解析 | jsoup + `java.util.zip` + JAXP 自研解析（zip → container.xml → OPF spine） |
 | 运行时 | JDK 21 |
 
 ## 设计文档
@@ -102,6 +103,9 @@ cp deploy.conf.example deploy.conf   # 可选：改端口 / JVM 参数 / 分支
 | GET | `/novels/chapters/{chapterId}` | 按章节 id 阅读正文 |
 | GET | `/cache` | RocksDB 缓存统计 |
 | DELETE | `/cache/{name}` | 清空指定缓存 |
+| POST | `/admin/novels`（multipart：`file`、`categoryId`，可选 `status`、`tags`） | 上传 EPUB，自动解析入库 |
+| GET | `/admin/novels` | 后台书目列表（按更新时间倒序） |
+| DELETE | `/admin/novels/{id}` | 删除书目及其章节 |
 
 统一分页结构：
 
@@ -114,6 +118,31 @@ cp deploy.conf.example deploy.conf   # 可选：改端口 / JVM 参数 / 分支
 ```json
 { "timestamp": "2026-10-10T15:36:06.481Z", "status": 404, "error": "Not Found", "message": "小说不存在：id=9999", "path": "/novels/9999" }
 ```
+
+## 后台管理：EPUB 上传
+
+上传 EPUB 后自动解析并入库，无需手工录入章节：
+
+- 读取 zip → `META-INF/container.xml` 定位 OPF → 按 `spine` 顺序抽取正文章节
+- 元数据取自 OPF：`dc:title`、`dc:creator`、`dc:description`、`dc:subject`（作为标签）
+- 一个 spine 文档对应一章；单文档内含多个 `h1/h2` 且正文较长时，按标题再切分
+- 入库时在同一事务内写入章节数与字数，并让首页等受影响的缓存失效
+
+```bash
+# 上传（categoryId 取自 /categories）
+curl -X POST -F "file=@/path/to/book.epub" -F "categoryId=1" \
+     -F "status=FINISHED" -F "tags=玄幻,热血" \
+     http://localhost:8080/admin/novels
+
+# 配置 app.admin.token 后需带请求头
+curl -X POST -H "X-Admin-Token: <token>" -F "file=@book.epub" -F "categoryId=1" \
+     http://localhost:8080/admin/novels
+
+curl http://localhost:8080/admin/novels           # 书目列表
+curl -X DELETE http://localhost:8080/admin/novels/9
+```
+
+安全与限制：`app.admin.token` 留空时不校验（仅适合内网），配置后 `/admin/**` 需带 `X-Admin-Token`；单文件大小上限 `spring.servlet.multipart.max-file-size`（默认 60MB）。当前无账号体系，生产环境应在网关或防火墙层面限制来源。
 
 ## 跨域
 

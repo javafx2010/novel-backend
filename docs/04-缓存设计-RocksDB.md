@@ -52,7 +52,7 @@ CacheEntry { long createdAt; Object value; }   // JDK 原生序列化后的字�
 
 | 缓存名 | 内容 | 键 | 失效方式 |
 | --- | --- | --- | --- |
-| `novel-home-list` | 热门榜、精选、最近更新、同类推荐 | `hot` / `recommend` / `latest` / `related:{novelId}:{limit}` | TTL；书目数据变更后由写接口 `@CacheEvict` |
+| `novel-home-list` | 热门榜、精选、最近更新、同类推荐 | `hot` / `recommend` / `latest` / `related:{novelId}:{limit}` | TTL；EPUB 上传 / 书目删除时整体 `@CacheEvict(allEntries = true)` |
 | `novel-detail` | 单本书详情实体 | 书籍 id | TTL；详情页自增点击时 `@CacheEvict` |
 | `novel-chapter` | 章节正文（按章节 id） | 章节 id | TTL |
 | `novel-chapter-no` | 章节正文（按书籍 + 章号） | `novelId:chapterNo` | TTL |
