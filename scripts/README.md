@@ -59,7 +59,7 @@ git clone <仓库地址> novel-browse
 
 # 3. 放置部署脚本（与源码平级；也可直接用仓库内的 novel-browse/scripts）
 cp -r ~/source/novel-browse/scripts ~/source/scripts
-cd ~/source/scripts && chmod +x *.sh
+cd ~/source/scripts && chmod +x *.sh   # 必须可执行，且用 bash 运行（./deploy.sh，不要用 sh deploy.sh）
 
 # 4.（可选）个性化配置
 cp deploy.conf.example deploy.conf
@@ -142,6 +142,8 @@ deploy.sh
 
 | 现象 | 处理 |
 | --- | --- |
+| `sh: 14: set: Illegal option -o pipefail` | 用 `sh deploy.sh` 运行了脚本（Ubuntu 的 `/bin/sh` 是 dash，不支持 `pipefail`）。请用 `./deploy.sh` 或 `bash deploy.sh`；当前版本的脚本检测到 `sh` 会自动切回 bash 重新执行 |
+| `Permission denied` | 未赋执行权限：`chmod +x *.sh` |
 | `JDK 版本过低` | 安装 JDK 21：`sudo apt install -y openjdk-21-jdk-headless`，或配置 `JAVA_BIN` |
 | 构建失败提示无法下载 Gradle / 依赖 | 检查服务器网络；`settings.gradle` 中已配置腾讯云镜像 + 官方源兜底 |
 | `健康检查失败` 后自动回滚 | 查看 `~/apps/novel-browse/logs/novel-browse.log`；必要时 `./app.sh log` |

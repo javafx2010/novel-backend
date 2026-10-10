@@ -7,6 +7,12 @@
 # ---------------------------------------------------------------------------
 # 基础路径与源码目录探测
 # ---------------------------------------------------------------------------
+# 仅支持 bash：dash（Ubuntu 的 /bin/sh）不支持 BASH_SOURCE、pipefail 等特性
+if [ -z "${BASH_VERSION:-}" ]; then
+    printf '[ERROR] common.sh 需要 bash 运行，请使用 ./deploy.sh、./app.sh 或 bash <脚本>\n' >&2
+    exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 

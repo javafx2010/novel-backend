@@ -11,6 +11,24 @@
 #   -k, --keep N       保留最近 N 个版本（默认取配置 KEEP_RELEASES）
 #   -b, --branch NAME  指定部署分支
 #   -h, --help         显示帮助
+#
+# 注意：必须用 bash 运行（直接 ./deploy.sh 或 bash deploy.sh）。
+#      Ubuntu 的 /bin/sh 是 dash，不支持 pipefail 等特性，误用 sh 时脚本会自动切回 bash。
+#
+# 兼容误用 sh 调用：自动改用 bash 重新执行
+if [ -z "${BASH_VERSION:-}" ]; then
+    if [ -n "${NOVEL_BROWSE_REEXEC:-}" ]; then
+        printf '[ERROR] 自动切换 bash 失败，请手动执行：bash %s\n' "$0" >&2
+        exit 1
+    fi
+    if command -v bash >/dev/null 2>&1; then
+        printf '[WARN] 检测到使用 sh 运行，已自动切换为 bash 执行\n' >&2
+        NOVEL_BROWSE_REEXEC=1 exec bash "$0" "$@"
+    fi
+    printf '[ERROR] 本脚本需要 bash 运行（Ubuntu 的 sh 为 dash，不支持所需语法）\n' >&2
+    exit 1
+fi
+
 set -u -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,7 +41,7 @@ NO_CLEANUP=false
 DO_ROLLBACK=false
 
 usage() {
-    sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
     exit 0
 }
 
