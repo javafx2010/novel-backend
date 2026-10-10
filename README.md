@@ -44,7 +44,7 @@ java -jar build/libs/novel-browse.jar
 ./gradlew bootRun
 ```
 
-服务默认监听 `http://localhost:8080`，接口前缀 `/api`。H2 控制台：`http://localhost:8080/h2-console`（JDBC URL `jdbc:h2:mem:noveldb`，账号 `sa`）。
+服务默认监听 `http://localhost:8080`，接口无统一前缀，按资源命名（`/home`、`/categories`、`/novels` 等）。H2 控制台：`http://localhost:8080/h2-console`（JDBC URL `jdbc:h2:mem:noveldb`，账号 `sa`）。
 
 ## 日志
 
@@ -88,20 +88,20 @@ cp deploy.conf.example deploy.conf   # 可选：改端口 / JVM 参数 / 分支
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/api/home` | 首页聚合：分类、精选、热门、最近更新、完本佳作 |
-| GET | `/api/categories` | 全部分类 |
-| GET | `/api/categories/{id}` | 分类详情 |
-| GET | `/api/categories/{id}/novels?sort=hot\|update&page=0&size=12` | 分类书库（分页） |
-| GET | `/api/novels?categoryId=&sort=&page=&size=` | 书籍列表，可按分类筛选 |
-| GET | `/api/rank?type=hot\|rating&page=0&size=20` | 排行榜 |
-| GET | `/api/search?q=关键词&page=0&size=12` | 按书名 / 作者 / 标签检索 |
-| GET | `/api/novels/{id}?chapterPreview=10` | 书籍详情 + 首/末章节 + 章节预览 + 同类推荐 |
-| GET | `/api/novels/{id}/chapters` | 全部章节目录 |
-| GET | `/api/novels/{id}/chapter-page?page=0&size=50` | 分页章节目录 |
-| GET | `/api/novels/{id}/chapters/{no}` | 按章节号阅读正文 |
-| GET | `/api/novels/chapters/{chapterId}` | 按章节 id 阅读正文 |
-| GET | `/api/cache` | RocksDB 缓存统计 |
-| DELETE | `/api/cache/{name}` | 清空指定缓存 |
+| GET | `/home` | 首页聚合：分类、精选、热门、最近更新、完本佳作 |
+| GET | `/categories` | 全部分类 |
+| GET | `/categories/{id}` | 分类详情 |
+| GET | `/categories/{id}/novels?sort=hot\|update&page=0&size=12` | 分类书库（分页） |
+| GET | `/novels?categoryId=&sort=&page=&size=` | 书籍列表，可按分类筛选 |
+| GET | `/rank?type=hot\|rating&page=0&size=20` | 排行榜 |
+| GET | `/search?q=关键词&page=0&size=12` | 按书名 / 作者 / 标签检索 |
+| GET | `/novels/{id}?chapterPreview=10` | 书籍详情 + 首/末章节 + 章节预览 + 同类推荐 |
+| GET | `/novels/{id}/chapters` | 全部章节目录 |
+| GET | `/novels/{id}/chapter-page?page=0&size=50` | 分页章节目录 |
+| GET | `/novels/{id}/chapters/{no}` | 按章节号阅读正文 |
+| GET | `/novels/chapters/{chapterId}` | 按章节 id 阅读正文 |
+| GET | `/cache` | RocksDB 缓存统计 |
+| DELETE | `/cache/{name}` | 清空指定缓存 |
 
 统一分页结构：
 
@@ -112,7 +112,7 @@ cp deploy.conf.example deploy.conf   # 可选：改端口 / JVM 参数 / 分支
 统一错误结构：
 
 ```json
-{ "timestamp": "2026-10-10T15:36:06.481Z", "status": 404, "error": "Not Found", "message": "小说不存在：id=9999", "path": "/api/novels/9999" }
+{ "timestamp": "2026-10-10T15:36:06.481Z", "status": 404, "error": "Not Found", "message": "小说不存在：id=9999", "path": "/novels/9999" }
 ```
 
 ## 跨域

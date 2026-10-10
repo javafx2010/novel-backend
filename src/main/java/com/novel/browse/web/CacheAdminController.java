@@ -16,7 +16,7 @@ import java.util.Map;
  * RocksDB 缓存运维接口：查看统计、清理缓存。
  */
 @RestController
-@RequestMapping("/api/cache")
+@RequestMapping("/cache")
 public class CacheAdminController {
 
     private final CacheManager cacheManager;

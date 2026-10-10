@@ -12,7 +12,6 @@ import com.novel.browse.web.dto.PageResult;
 import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -22,7 +21,6 @@ import java.util.List;
  * 首页聚合、分类书库、排行榜、搜索（REST 接口）。
  */
 @RestController
-@RequestMapping("/api")
 public class HomeController {
 
     private static final String DEFAULT_SORT = "hot";

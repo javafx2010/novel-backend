@@ -25,7 +25,7 @@ public class WebConfig implements WebMvcConfigurer {
         if (allowedOrigins == null || allowedOrigins.length == 0) {
             return;
         }
-        registry.addMapping("/api/**")
+        registry.addMapping("/**")
                 .allowedOriginPatterns(allowedOrigins)
                 .allowedMethods(allowedMethods)
                 .allowedHeaders("*")

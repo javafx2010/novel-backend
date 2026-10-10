@@ -50,7 +50,7 @@ GRADLE_EXTRA_ARGS="--no-daemon -x test"
 # GRADLE_BIN="/usr/bin/gradle"
 
 # ------------------------- 健康检查 -------------------------
-HEALTH_PATH="/api/categories"
+HEALTH_PATH="/categories"
 HEALTH_TIMEOUT=90
 HEALTH_INTERVAL=2
 STOP_TIMEOUT=30

@@ -72,7 +72,7 @@ vim deploy.conf                    # 端口、JVM 参数、分支等
 ./install-service.sh               # 之后 deploy.sh 自动使用 systemctl
 ```
 
-首次部署会自动完成 Gradle Wrapper 下载（腾讯云镜像）、构建、启动，并等待 `/api/categories` 健康检查通过。
+首次部署会自动完成 Gradle Wrapper 下载（腾讯云镜像）、构建、启动，并等待 `/categories` 健康检查通过。
 
 > 脚本更新：脚本已随仓库提交，`deploy.sh` 只会更新 `SOURCE_DIR` 下的代码。若把脚本放在了 `~/source/scripts`（仓库外），需要手动同步一次：`cp -r ~/source/novel-browse/scripts/. ~/source/scripts/`（`deploy.conf` 不会被覆盖，因为仓库里只有 `deploy.conf.example`）。
 
@@ -110,7 +110,7 @@ vim deploy.conf                    # 端口、JVM 参数、分支等
 | `BUILD_TASK` | `clean bootJar` | Gradle 构建任务 |
 | `GRADLE_EXTRA_ARGS` | `--no-daemon -x test` | 构建附加参数 |
 | `GRADLE_BIN` | 空（用源码目录的 `gradlew`） | 指定 Gradle 可执行文件；gradlew 缺失时自动回退到系统 `gradle` |
-| `HEALTH_PATH` | `/api/categories` | 健康检查路径 |
+| `HEALTH_PATH` | `/categories` | 健康检查路径 |
 | `HEALTH_TIMEOUT` | `90` | 健康检查最长等待秒数 |
 | `STOP_TIMEOUT` | `30` | 优雅停止最长等待秒数 |
 
@@ -127,7 +127,7 @@ deploy.sh
   ├─ 复制 jar → releases/<commit>-<时间>/app.jar，写 release.env
   ├─ 停止旧版本（SIGTERM，最多等 STOP_TIMEOUT 秒，超时再 SIGKILL）
   ├─ ln -sfn 切换 current 软链接
-  ├─ 启动新版本 → 轮询 /api/categories 直至通过
+  ├─ 启动新版本 → 轮询 /categories 直至通过
   │    └─ 失败：自动切回上一个版本并重启，脚本以非 0 退出
   └─ 清理旧版本（保留 KEEP_RELEASES 个，始终保留 current）
 ```

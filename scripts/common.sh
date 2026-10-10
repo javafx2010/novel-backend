@@ -46,7 +46,7 @@ default_source_dir() {
 : "${GIT_REMOTE:=origin}"
 : "${JAVA_OPTS:=-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Shanghai}"
 : "${EXTRA_ARGS:=}"                                 # 追加的 Spring Boot 启动参数
-: "${HEALTH_PATH:=/api/categories}"
+: "${HEALTH_PATH:=/categories}"
 : "${HEALTH_TIMEOUT:=90}"                           # 健康检查最长等待秒数
 : "${HEALTH_INTERVAL:=2}"
 : "${STOP_TIMEOUT:=30}"                             # 优雅停止最长等待秒数

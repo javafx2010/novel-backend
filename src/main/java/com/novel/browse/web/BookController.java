@@ -22,7 +22,7 @@ import java.util.List;
  * 书籍详情、目录与章节阅读（REST 接口）。
  */
 @RestController
-@RequestMapping("/api/novels")
+@RequestMapping("/novels")
 public class BookController {
 
     private final NovelService novelService;

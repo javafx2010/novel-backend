@@ -98,7 +98,7 @@ sequenceDiagram
 | 启动 | `RocksDB.loadLibrary()`；创建目录；`RocksDB.open(Options)`；`clean-on-start=true` 时遍历全库删除历史数据；按配置预建缓存对象 |
 | 运行 | 读写 SSD/HDD 上的 LSM Tree；`WriteOptions.sync=false`（进程崩溃不丢数据，仅丢未刷盘的 WAL 行为差异，一般可接受） |
 | 关闭 | `@PreDestroy`（`DisposableBean.destroy()`）：关闭各缓存的 `Read/WriteOptions` → `syncWal()` → `db.close()` → `options.close()`，逐个打印日志 |
-| 运维 | `GET /api/cache` 查看命中率、写入数、条目数；`DELETE /api/cache/{name}` 清空指定缓存 |
+| 运维 | `GET /cache` 查看命中率、写入数、条目数；`DELETE /cache/{name}` 清空指定缓存 |
 
 配置参考：
 
@@ -119,7 +119,7 @@ rocksdb:
 | JDK 序列化较重，且强依赖类结构（`serialVersionUID` 变更导致反序列化失败） | 旧缓存不可读 | 已按未命中处理；生产建议换 Jackson 并显式类型，或升级时清空目录 |
 | 分页查询结果（`Page`）不可序列化 | 无法直接缓存 `rankPage` / `search` 的 `Page` 对象 | 当前不缓存 `Page`；如需缓存改为缓存 `content` 列表并自行维护分页信息 |
 | 嵌入式缓存无法在多实例间共享 | 多副本部署时命中率下降、数据不一致窗口变大 | 多实例场景切换 Redis（见 [05 文档](05-构建部署与配置.md)） |
-| 本地写占用磁盘与内存 | 目录持续增长 | 定期清理目录 / 调整 TTL；`size()` 与命中率可通过 `/api/cache` 观测 |
+| 本地写占用磁盘与内存 | 目录持续增长 | 定期清理目录 / 调整 TTL；`size()` 与命中率可通过 `/cache` 观测 |
 | 首次访问仍有穿透 | 冷启动 RT 抖动 | 可在启动后做一次预热（结合后续需求实现） |
 
 ## 8. 扩展点
