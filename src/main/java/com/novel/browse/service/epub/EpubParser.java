@@ -76,6 +76,7 @@ public class EpubParser {
 
         Map<String, ManifestItem> manifest = readManifest(opf, base);
         List<String> spine = readSpine(opf);
+        Cover cover = readCover(opf, manifest, entries);
 
         List<EpubChapter> chapters = new ArrayList<>();
         int skipped = 0;
@@ -102,9 +103,78 @@ public class EpubParser {
             throw new BadRequestException("No chapter content could be parsed from the EPUB: " + fileName
                     + " (spine items: " + spine.size() + ", skipped: " + skipped + ")");
         }
-        log.info("EPUB parsed: {} - title={}, author={}, chapters={}, skipped={}",
-                fileName, title, author, chapters.size(), skipped);
-        return new EpubBook(title, author, description, language, subjects, chapters);
+        log.info("EPUB parsed: {} - title={}, author={}, chapters={}, skipped={}, cover={}",
+                fileName, title, author, chapters.size(), skipped, cover == null ? "none" : cover.mediaType());
+        return new EpubBook(title, author, description, language, subjects, chapters,
+                cover == null ? null : cover.data(), cover == null ? null : cover.mediaType());
+    }
+
+    // ------------------------------------------------------------------
+    // cover
+    // ------------------------------------------------------------------
+
+    /**
+     * Locates the cover image: EPUB2 {@code <meta name="cover">}, EPUB3 {@code properties="cover-image"},
+     * and finally a manifest entry whose id or path mentions "cover".
+     */
+    private Cover readCover(org.w3c.dom.Document opf, Map<String, ManifestItem> manifest,
+                            Map<String, byte[]> entries) {
+        String coverId = coverMetaId(opf);
+        if (coverId != null) {
+            ManifestItem item = manifest.get(coverId);
+            if (item != null) {
+                Cover cover = toCover(item, entries);
+                if (cover != null) {
+                    return cover;
+                }
+            }
+        }
+        for (ManifestItem item : manifest.values()) {
+            if (item.properties() != null && item.properties().contains("cover-image")) {
+                Cover cover = toCover(item, entries);
+                if (cover != null) {
+                    return cover;
+                }
+            }
+        }
+        for (Map.Entry<String, ManifestItem> entry : manifest.entrySet()) {
+            ManifestItem item = entry.getValue();
+            boolean named = (entry.getKey() != null && entry.getKey().toLowerCase(Locale.ROOT).contains("cover"))
+                    || item.href().toLowerCase(Locale.ROOT).contains("cover");
+            if (named) {
+                Cover cover = toCover(item, entries);
+                if (cover != null) {
+                    return cover;
+                }
+            }
+        }
+        return null;
+    }
+
+    private Cover toCover(ManifestItem item, Map<String, byte[]> entries) {
+        if (!isImageType(item.mediaType())) {
+            return null;
+        }
+        byte[] data = findEntry(entries, item.href());
+        return data == null || data.length == 0 ? null : new Cover(data, item.mediaType());
+    }
+
+    private String coverMetaId(org.w3c.dom.Document opf) {
+        NodeList metas = opf.getElementsByTagName("meta");
+        for (int i = 0; i < metas.getLength(); i++) {
+            Node node = metas.item(i);
+            if ("cover".equalsIgnoreCase(attribute(node, "name"))) {
+                String content = attribute(node, "content");
+                if (content != null && !content.isBlank()) {
+                    return content.trim();
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean isImageType(String mediaType) {
+        return mediaType != null && mediaType.toLowerCase(Locale.ROOT).startsWith("image/");
     }
 
     // ------------------------------------------------------------------
@@ -213,8 +283,9 @@ public class EpubParser {
                 continue;
             }
             String mediaType = attribute(node, "media-type");
+            String properties = attribute(node, "properties");
             String path = href.contains("/") || base.isEmpty() ? href : base + href;
-            items.put(id, new ManifestItem(normalizePath(path), mediaType == null ? "" : mediaType));
+            items.put(id, new ManifestItem(normalizePath(path), mediaType == null ? "" : mediaType, properties));
         }
         return items;
     }
@@ -434,6 +505,10 @@ public class EpubParser {
         return StandardCharsets.UTF_8.name();
     }
 
-    private record ManifestItem(String href, String mediaType) {
+    private record ManifestItem(String href, String mediaType, String properties) {
+    }
+
+    /** Cover image found in the EPUB */
+    private record Cover(byte[] data, String mediaType) {
     }
 }

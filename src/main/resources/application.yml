@@ -51,6 +51,10 @@ app:
     time-window-seconds: 300
     # 免签路径（Ant 模式）；启用签名后健康检查路径需放这里，否则部署脚本的健康检查会失败
     exclude-paths: []
+  cover:
+    # 从 EPUB 提取的封面图保存目录（部署脚本会传 $APP_ROOT/data/covers）
+    # 内置的演示封面在 classpath:/static/covers/，两者同在 /covers/** 下访问
+    dir: './data/covers'
   upload:
     # 上传的 EPUB 原文件保存目录（部署脚本会传 $APP_ROOT/data/epub）
     dir: './data/epub'

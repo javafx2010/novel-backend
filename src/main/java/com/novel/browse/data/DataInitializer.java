@@ -84,6 +84,7 @@ public class DataInitializer implements CommandLineRunner {
         novel.setCategory(category);
         novel.setCoverColor(seed.coverColor);
         novel.setCoverMark(seed.coverMark);
+        novel.setCoverImage(seed.coverImage);
         novel.setDescription(seed.description);
         novel.setTags(String.join(",", seed.tags));
         novel.setStatus(seed.status);
@@ -165,7 +166,7 @@ public class DataInitializer implements CommandLineRunner {
     // ------------------------------------------------------------------
 
     private record NovelSeed(String title, String author, String category, String coverColor, String coverMark,
-                             String description, String status, long views, double rating, long daysAgo,
+                             String coverImage, String description, String status, long views, double rating, long daysAgo,
                              int lastUpdateHoursAgo, int intervalHours, int step, int paragraphPerChapter,
                              String[] tags, String[] chapters, String bodyType) {
     }
@@ -251,7 +252,7 @@ public class DataInitializer implements CommandLineRunner {
                 "登云帖",
                 "青冥",
                 "玄幻奇幻",
-                "linear-gradient(135deg,#3b82f6,#7c3aed)", "剑",
+                "linear-gradient(135deg,#3b82f6,#7c3aed)", "剑", "demo-dengyuntie.jpg",
                 "一个没有灵根的少年，带着一张写错名字的登云帖，叩开了天下第一剑宗的山门。\n" +
                         "他没有天赋，只有比别人更长的夜。当所有人都在问他凭什么时，他已经在雪里站了整整三年。",
                 Novel.STATUS_ONGOING, 1892650L, 9.2, 120, 6, 26, 3, 5,
@@ -265,7 +266,7 @@ public class DataInitializer implements CommandLineRunner {
                 "长夜拾星",
                 "苏砚",
                 "玄幻奇幻",
-                "linear-gradient(135deg,#0ea5e9,#1e3a8a)", "星",
+                "linear-gradient(135deg,#0ea5e9,#1e3a8a)", "星", "demo-changyeshixing.jpg",
                 "星落之夜，被人视为灾星的少女被逐出家门。她于长夜里拾起第一颗星，从此命盘不再属于天道。",
                 Novel.STATUS_FINISHED, 986780L, 8.8, 260, 240, 30, 4, 5,
                 new String[]{"女主", "逆袭", "星象", "古典"},
@@ -277,7 +278,7 @@ public class DataInitializer implements CommandLineRunner {
                 "半城灯火",
                 "林小满",
                 "都市职场",
-                "linear-gradient(135deg,#f97316,#ef4444)", "城",
+                "linear-gradient(135deg,#f97316,#ef4444)", "城", "demo-banchengdenghuo.jpg",
                 "三十二岁的他被优化那天，给楼下便利店的猫买了根火腿肠。人生从那一刻重新开始。\n" +
                         "没有金手指，只有一个死也不肯放弃的项目。",
                 Novel.STATUS_ONGOING, 2145870L, 9.4, 90, 3, 24, 2, 5,
@@ -292,7 +293,7 @@ public class DataInitializer implements CommandLineRunner {
                 "投行夜未眠",
                 "何夜",
                 "都市职场",
-                "linear-gradient(135deg,#14b8a6,#0f766e)", "金",
+                "linear-gradient(135deg,#14b8a6,#0f766e)", "金", "demo-touhangyebumian.jpg",
                 "她是所有人眼里最快的项目经理，习惯在天亮前关灯。直到有一天，有人把她的灯留到天亮。",
                 Novel.STATUS_FINISHED, 1342650L, 8.9, 300, 480, 36, 3, 5,
                 new String[]{"金融", "职场", "情感", "都市"},
@@ -305,7 +306,7 @@ public class DataInitializer implements CommandLineRunner {
                 "沉默的第三人",
                 "程默",
                 "悬疑推理",
-                "linear-gradient(135deg,#334155,#111827)", "案",
+                "linear-gradient(135deg,#334155,#111827)", "案", "demo-chenmodisanren.jpg",
                 "密室、消失的三分钟、五种口供。刑警队长沈知远在旧档案里翻出十二年前的一枚指纹——那是他自己的。",
                 Novel.STATUS_ONGOING, 3245870L, 9.6, 45, 2, 20, 1, 5,
                 new String[]{"刑侦", "密室", "反转", "硬核"},
@@ -318,7 +319,7 @@ public class DataInitializer implements CommandLineRunner {
                 "铁衣渡关",
                 "北望",
                 "历史军事",
-                "linear-gradient(135deg,#b45309,#78350f)", "甲",
+                "linear-gradient(135deg,#b45309,#78350f)", "甲", "demo-tieyiduguan.jpg",
                 "边境小镇失守的第七日，被夺去兵权的老将重新披甲。他手里只剩三百人和一封没送到的诏书。",
                 Novel.STATUS_ONGOING, 876540L, 9.0, 70, 8, 28, 3, 5,
                 new String[]{"战争", "家国", "老将", "悲壮"},
@@ -331,7 +332,7 @@ public class DataInitializer implements CommandLineRunner {
                 "信号三十七",
                 "远星",
                 "科幻末世",
-                "linear-gradient(135deg,#6366f1,#4338ca)", "穹",
+                "linear-gradient(135deg,#6366f1,#4338ca)", "穹", "demo-xinhaosanshiqi.jpg",
                 "穹顶坍塌后的第九年，拾荒者邦州在辐射带捡到一台仍会说话的旧设备。它重复了三十七遍同一句话。",
                 Novel.STATUS_ONGOING, 1465800L, 9.1, 100, 5, 30, 2, 5,
                 new String[]{"末世", "太空", "希望", "硬科幻"},
@@ -344,7 +345,7 @@ public class DataInitializer implements CommandLineRunner {
                 "第九十七页",
                 "陈也",
                 "言情青春",
-                "linear-gradient(135deg,#ec4899,#f472b6)", "夏",
+                "linear-gradient(135deg,#ec4899,#f472b6)", "夏", "demo-dijiushiyiye.jpg",
                 "高三那年的夏天，他把所有想说的话写在一张纸条上，夹进了她的书里——第九十七页。\n" +
                         "十年后同学聚会，那本书又被搬了出来。",
                 Novel.STATUS_FINISHED, 654320L, 8.6, 200, 600, 40, 3, 5,

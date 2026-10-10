@@ -1,6 +1,7 @@
 package com.novel.browse.web.dto;
 
 import com.novel.browse.domain.Novel;
+import com.novel.browse.service.CoverStorage;
 
 import java.io.Serializable;
 import java.io.Serial;
@@ -12,7 +13,7 @@ import java.util.List;
  */
 public record NovelSummary(Long id, String title, String author, String description,
                            Long categoryId, String categoryName, String coverColor, String coverMark,
-                           String status, String statusText, List<String> tags,
+                           String coverUrl, String status, String statusText, List<String> tags,
                            Double rating, Long viewCount, Long wordCount, Integer chapterCount,
                            LocalDateTime updatedAt) implements Serializable {
 
@@ -29,6 +30,7 @@ public record NovelSummary(Long id, String title, String author, String descript
                 novel.getCategory() == null ? null : novel.getCategory().getName(),
                 novel.getCoverColor(),
                 novel.getCoverMark(),
+                CoverStorage.url(novel.getCoverImage()),
                 novel.getStatus(),
                 novel.getStatusText(),
                 List.of(novel.getTagList()),

@@ -51,17 +51,20 @@ public class AdminService {
 
     private final EpubParser epubParser;
     private final EpubStorage epubStorage;
+    private final CoverStorage coverStorage;
     private final NovelRepository novelRepository;
     private final ChapterRepository chapterRepository;
     private final CategoryRepository categoryRepository;
 
     public AdminService(EpubParser epubParser,
                         EpubStorage epubStorage,
+                        CoverStorage coverStorage,
                         NovelRepository novelRepository,
                         ChapterRepository chapterRepository,
                         CategoryRepository categoryRepository) {
         this.epubParser = epubParser;
         this.epubStorage = epubStorage;
+        this.coverStorage = coverStorage;
         this.novelRepository = novelRepository;
         this.chapterRepository = chapterRepository;
         this.categoryRepository = categoryRepository;
@@ -89,7 +92,7 @@ public class AdminService {
         // Store under the category directory: data/epub/<category>/<hash>-<original name>.epub
         String savedPath = epubStorage.save(data, fileName, category.getName());
         try {
-            Novel novel = createNovel(data, fileName, category, status, tags);
+            Novel novel = createNovel(data, fileName, category, status, tags, hash);
             novel.setSourceFile(savedPath);
             novel.setSourceHash(hash);
             return novelRepository.save(novel);
@@ -116,7 +119,7 @@ public class AdminService {
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read the EPUB: " + file, e);
         }
-        Novel novel = createNovel(data, file.getFileName().toString(), category, status, null);
+        Novel novel = createNovel(data, file.getFileName().toString(), category, status, null, hash);
         novel.setSourceFile(epubStorage.relative(file));
         novel.setSourceHash(hash);
         return novelRepository.save(novel);
@@ -146,6 +149,7 @@ public class AdminService {
         if (sourceFile != null && !sourceFile.isBlank()) {
             epubStorage.delete(sourceFile);
         }
+        coverStorage.delete(novel.getCoverImage());
         log.info("Deleted novel: id={} title={} chapters={} sourceFile={}", id, novel.getTitle(), removed,
                 sourceFile == null ? "none" : sourceFile);
     }
@@ -154,7 +158,8 @@ public class AdminService {
      * Parses the EPUB and builds the novel with its chapters: maintains chapter count, word count, cover and tags.
      * The caller sets the source file information and persists the result.
      */
-    private Novel createNovel(byte[] data, String fileName, Category category, String status, String tags) {
+    private Novel createNovel(byte[] data, String fileName, Category category, String status, String tags,
+                              String hash) {
         EpubBook book = epubParser.parse(data, fileName);
 
         String title = defaultIfBlank(book.title(), defaultTitle(fileName));
@@ -164,6 +169,9 @@ public class AdminService {
         novel.setCategory(category);
         novel.setCoverColor(COVER_COLORS[Math.abs(title.hashCode()) % COVER_COLORS.length]);
         novel.setCoverMark(coverMark(title));
+        if (book.coverImage() != null && book.coverImage().length > 0) {
+            novel.setCoverImage(coverStorage.save(book.coverImage(), book.coverMediaType(), hash));
+        }
         novel.setDescription(TextUtil.truncate(book.description(), 2000));
         novel.setTags(TextUtil.truncate(tags != null && !tags.isBlank() ? tags : String.join(",", book.subjects()), 128));
         novel.setStatus(Novel.STATUS_FINISHED.equalsIgnoreCase(status) ? Novel.STATUS_FINISHED : Novel.STATUS_ONGOING);

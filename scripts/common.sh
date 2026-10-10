@@ -84,6 +84,7 @@ init_paths() {
     LOG_FILE="$LOG_DIR/$APP_NAME.log"
     CACHE_DIR="$DATA_DIR/rocksdb-cache"
     UPLOAD_DIR="$DATA_DIR/epub"
+    COVER_DIR="$DATA_DIR/covers"
     ENV_FILE="$APP_ROOT/app.env"
 }
 
@@ -135,7 +136,7 @@ check_requirements() {
 }
 
 ensure_dirs() {
-    mkdir -p "$RELEASES_DIR" "$LOG_DIR" "$RUN_DIR" "$DATA_DIR" "$UPLOAD_DIR" || die "创建部署目录失败：$APP_ROOT"
+    mkdir -p "$RELEASES_DIR" "$LOG_DIR" "$RUN_DIR" "$DATA_DIR" "$UPLOAD_DIR" "$COVER_DIR" || die "创建部署目录失败：$APP_ROOT"
 }
 
 # ---------------------------------------------------------------------------
@@ -362,6 +363,7 @@ render_template() {
         -e "s|@@CURRENT_LINK@@|$CURRENT_LINK|g" \
         -e "s|@@CACHE_DIR@@|$CACHE_DIR|g" \
         -e "s|@@UPLOAD_DIR@@|$UPLOAD_DIR|g" \
+        -e "s|@@COVER_DIR@@|$COVER_DIR|g" \
         -e "s|@@LOG_DIR@@|$LOG_DIR|g" \
         -e "s|@@LOG_FILE@@|$LOG_FILE|g" \
         -e "s|@@PORT@@|$PORT|g" \
@@ -371,7 +373,7 @@ render_template() {
 
 app_args() {
     local args
-    args="--server.port=$PORT --rocksdb.cache.path=$CACHE_DIR --app.upload.dir=$UPLOAD_DIR"
+    args="--server.port=$PORT --rocksdb.cache.path=$CACHE_DIR --app.upload.dir=$UPLOAD_DIR --app.cover.dir=$COVER_DIR"
     [ -n "$SPRING_PROFILES_ACTIVE" ] && args="$args --spring.profiles.active=$SPRING_PROFILES_ACTIVE"
     [ -n "$EXTRA_ARGS" ] && args="$args $EXTRA_ARGS"
     printf '%s' "$args"

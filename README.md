@@ -177,6 +177,19 @@ mkdir -p ~/apps/novel-browse/data/epub/武侠修真
 cp ~/books/*.epub ~/apps/novel-browse/data/epub/武侠修真/
 ```
 
+## 书籍封面
+
+封面分两种来源，**接口统一用 `coverUrl` 返回**，前端优先用图片、无图时退回 `coverColor` + `coverMark` 的渐变+首字方案：
+
+| 来源 | 说明 |
+| --- | --- |
+| EPUB 内嵌封面 | 导入（上传 / 启动扫描）时自动提取：EPUB2 的 `<meta name="cover">`、EPUB3 的 `properties="cover-image"`，再退到 id/href 含 cover 的图片资源；存到 `app.cover.dir`（默认 `./data/covers`，部署时 `$APP_ROOT/data/covers`），文件名 `<内容哈希前8位>-cover.jpg` |
+| 内置演示封面 | 8 本演示书的封面打包在 `src/main/resources/static/covers/demo-*.jpg`（jar 内），与运行时提取的封面同在 `/covers/**` 下访问 |
+
+- 访问地址：`GET /covers/<file>`（`WebConfig` 同时映射运行时目录与 classpath，缓存 1 小时）
+- EPUB 没有封面时 `coverUrl` 为 null（全局 `non_null`，字段不输出），前端用渐变兜底
+- 删除书目会同时删除其封面文件
+
 ## 接口签名
 
 所有接口可开启 HMAC-SHA256 签名校验（`app.signature.*`），**密钥为空时不校验**，本地与前端无需改动。

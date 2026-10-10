@@ -43,9 +43,13 @@ public class Novel implements Serializable {
     @Column(length = 128)
     private String coverColor;
 
-    /** Character or symbol shown on the cover */
+    /** Character or symbol shown on the cover (fallback when there is no cover image) */
     @Column(length = 8)
     private String coverMark;
+
+    /** Cover image file name inside the cover directory, null means use the gradient fallback */
+    @Column(name = "cover_image", length = 255)
+    private String coverImage;
 
     @Column(name = "intro", length = 2000)
     private String description;
@@ -144,6 +148,14 @@ public class Novel implements Serializable {
 
     public void setCoverMark(String coverMark) {
         this.coverMark = coverMark;
+    }
+
+    public String getCoverImage() {
+        return coverImage;
+    }
+
+    public void setCoverImage(String coverImage) {
+        this.coverImage = coverImage;
     }
 
     public String getDescription() {

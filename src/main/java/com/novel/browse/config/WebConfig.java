@@ -1,5 +1,6 @@
 package com.novel.browse.config;
 
+import com.novel.browse.service.CoverStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,7 +28,19 @@ public class WebConfig implements WebMvcConfigurer {
     @Value("${app.admin.token:}")
     private String adminToken;
 
+    /** Directory of the extracted EPUB covers; the bundled demo covers live on the classpath */
+    @Value("${app.cover.dir:./data/covers}")
+    private String coverDir;
+
     private static final Logger log = LoggerFactory.getLogger(WebConfig.class);
+
+    @Override
+    public void addResourceHandlers(org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry registry) {
+        String location = java.nio.file.Path.of(coverDir).toAbsolutePath().normalize().toUri().toString();
+        registry.addResourceHandler(CoverStorage.URL_PREFIX + "**")
+                .addResourceLocations(location, "classpath:/static/covers/")
+                .setCachePeriod(3600);
+    }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
