@@ -109,6 +109,7 @@ vim deploy.conf                    # 端口、JVM 参数、分支等
 | `KEEP_RELEASES` | `5` | 保留的历史版本数 |
 | `BUILD_TASK` | `clean bootJar` | Gradle 构建任务 |
 | `GRADLE_EXTRA_ARGS` | `--no-daemon -x test` | 构建附加参数 |
+| `GRADLE_BIN` | 空（用源码目录的 `gradlew`） | 指定 Gradle 可执行文件；gradlew 缺失时自动回退到系统 `gradle` |
 | `HEALTH_PATH` | `/api/categories` | 健康检查路径 |
 | `HEALTH_TIMEOUT` | `90` | 健康检查最长等待秒数 |
 | `STOP_TIMEOUT` | `30` | 优雅停止最长等待秒数 |
@@ -119,8 +120,9 @@ vim deploy.conf                    # 端口、JVM 参数、分支等
 
 ```text
 deploy.sh
-  ├─ 检查环境（JDK ≥ 21、curl、git、gradlew）
+  ├─ 检查基础环境（JDK ≥ 21、curl、git、settings.gradle）
   ├─ git pull --ff-only            （--skip-pull 可跳过）
+  ├─ 校验构建工具（gradlew，缺执行权限自动补；缺失则退回系统 gradle）
   ├─ ./gradlew clean bootJar -x test（--skip-build 可跳过）
   ├─ 复制 jar → releases/<commit>-<时间>/app.jar，写 release.env
   ├─ 停止旧版本（SIGTERM，最多等 STOP_TIMEOUT 秒，超时再 SIGKILL）
@@ -129,6 +131,8 @@ deploy.sh
   │    └─ 失败：自动切回上一个版本并重启，脚本以非 0 退出
   └─ 清理旧版本（保留 KEEP_RELEASES 个，始终保留 current）
 ```
+
+> `gradlew` 的校验特意放在 `git pull` **之后**：若源码仓库尚未更新到含 Gradle Wrapper 的提交，先校验会误报"未找到 Gradle Wrapper"，导致拉码也被跳过。
 
 几点说明：
 
@@ -143,6 +147,7 @@ deploy.sh
 | 现象 | 处理 |
 | --- | --- |
 | `sh: 14: set: Illegal option -o pipefail` | 用 `sh deploy.sh` 运行了脚本（Ubuntu 的 `/bin/sh` 是 dash，不支持 `pipefail`）。请用 `./deploy.sh` 或 `bash deploy.sh`；当前版本的脚本检测到 `sh` 会自动切回 bash 重新执行 |
+| `未找到 Gradle Wrapper：.../gradlew` | 源码目录没有 `gradlew`。先确认 `git -C ~/source/novel-browse log --oneline -1` 是否已更新到含 Wrapper 的提交（脚本现在会先 `git pull` 再校验，正常可直接重跑）；若仓库确实没有 Wrapper，可安装 `gradle` 或配置 `GRADLE_BIN` |
 | `Permission denied` | 未赋执行权限：`chmod +x *.sh` |
 | `JDK 版本过低` | 安装 JDK 21：`sudo apt install -y openjdk-21-jdk-headless`，或配置 `JAVA_BIN` |
 | 构建失败提示无法下载 Gradle / 依赖 | 检查服务器网络；`settings.gradle` 中已配置腾讯云镜像 + 官方源兜底 |

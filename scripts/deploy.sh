@@ -95,6 +95,7 @@ fi
 if [ "$SKIP_BUILD" = "true" ]; then
     warn "跳过构建（--skip-build），使用现有产物"
 else
+    check_build_tool   # 拉码之后再校验 gradlew，避免仓库未更新时误报
     build_app
 fi
 

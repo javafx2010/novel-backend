@@ -45,6 +45,8 @@ KEEP_RELEASES=5
 # Gradle 构建参数（服务器内存较小时保持 --no-daemon）
 BUILD_TASK="clean bootJar"
 GRADLE_EXTRA_ARGS="--no-daemon -x test"
+# 默认用源码目录下的 gradlew（由仓库提供）；仅当想强制使用系统 gradle 时才配置
+# GRADLE_BIN="/usr/bin/gradle"
 
 # ------------------------- 健康检查 -------------------------
 HEALTH_PATH="/api/categories"

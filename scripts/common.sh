@@ -54,6 +54,7 @@ default_source_dir() {
 : "${BUILD_TASK:=clean bootJar}"
 : "${GRADLE_EXTRA_ARGS:=--no-daemon -x test}"
 : "${JAVA_BIN:=}"
+: "${GRADLE_BIN:=}"                                 # 指定 gradle 可执行文件（默认用源码目录的 gradlew）
 
 # ---------------------------------------------------------------------------
 # 日志输出
@@ -126,7 +127,8 @@ check_requirements() {
     command -v curl >/dev/null 2>&1 || die "未找到 curl，请先安装（Ubuntu: sudo apt install -y curl）"
     if [ "$need_build" = "true" ]; then
         command -v git >/dev/null 2>&1 || die "未找到 git，无法拉取代码（Ubuntu: sudo apt install -y git）"
-        [ -x "$SOURCE_DIR/gradlew" ] || die "未找到 Gradle Wrapper：$SOURCE_DIR/gradlew"
+        # 注意：gradlew 的校验放在 git pull 之后（check_build_tool），
+        # 否则源码仓库尚未更新到含 Wrapper 的版本时会误报缺失。
         [ -f "$SOURCE_DIR/settings.gradle" ] || die "源码目录不正确：${SOURCE_DIR}（缺少 settings.gradle）"
     fi
 }
@@ -154,9 +156,46 @@ pull_code() {
     fi
 }
 
+# 校验构建工具可用性：优先 Gradle Wrapper（缺执行权限会自动补），其次系统 gradle。
+# 需在 git pull 之后调用，避免源码未更新时误判。
+check_build_tool() {
+    if [ -n "$GRADLE_BIN" ]; then
+        [ -x "$GRADLE_BIN" ] || command -v "$GRADLE_BIN" >/dev/null 2>&1 || \
+            die "GRADLE_BIN 不可用：${GRADLE_BIN}"
+        return 0
+    fi
+    if [ -f "$SOURCE_DIR/gradlew" ]; then
+        if [ ! -x "$SOURCE_DIR/gradlew" ]; then
+            warn "gradlew 缺少执行权限，已自动补上（chmod +x）"
+            chmod +x "$SOURCE_DIR/gradlew" 2>/dev/null || true
+        fi
+        return 0
+    fi
+    if command -v gradle >/dev/null 2>&1; then
+        warn "源码目录缺少 gradlew，改用系统 gradle：$(command -v gradle)"
+        return 0
+    fi
+    die "未找到 Gradle：${SOURCE_DIR}/gradlew 不存在（请确认仓库已包含 Gradle Wrapper，可 git pull 后重试），也未检测到系统 gradle；可安装 gradle 或配置 GRADLE_BIN"
+}
+
+# 执行 Gradle：Wrapper 不可执行时用 sh 调用，仍不可用则退回系统 gradle
+run_gradle() {
+    if [ -n "$GRADLE_BIN" ]; then
+        "$GRADLE_BIN" "$@"
+    elif [ -x "$SOURCE_DIR/gradlew" ]; then
+        "$SOURCE_DIR/gradlew" "$@"
+    elif [ -f "$SOURCE_DIR/gradlew" ]; then
+        sh "$SOURCE_DIR/gradlew" "$@"
+    elif command -v gradle >/dev/null 2>&1; then
+        gradle "$@"
+    else
+        return 127
+    fi
+}
+
 build_app() {
-    log "开始构建：./gradlew ${BUILD_TASK} ${GRADLE_EXTRA_ARGS}"
-    ( cd "$SOURCE_DIR" && ./gradlew ${BUILD_TASK} ${GRADLE_EXTRA_ARGS} ) >&2 || die "Gradle 构建失败"
+    log "开始构建：gradle ${BUILD_TASK} ${GRADLE_EXTRA_ARGS}"
+    ( cd "$SOURCE_DIR" && run_gradle ${BUILD_TASK} ${GRADLE_EXTRA_ARGS} ) >&2 || die "Gradle 构建失败"
     log "构建完成"
 }
 
