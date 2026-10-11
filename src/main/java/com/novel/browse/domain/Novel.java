@@ -66,7 +66,16 @@ public class Novel implements Serializable {
     @Column(length = 128)
     private String tags;
 
-    /** Language of this edition, e.g. {@code en} or {@code zh_CN}: one work may exist in several languages */
+    /**
+     * Language of this edition, e.g. {@code en} or {@code zh_CN}: one work may exist in several languages.
+     * <p>
+     * The column default matters for upgrades: {@code ddl-auto=update} issues
+     * {@code alter table nb_novel add column language varchar(16) not null}, which fails on H2 (and MySQL strict mode)
+     * as soon as the table already holds rows &mdash; existing rows would violate NOT NULL. Without the default the
+     * column is never created and every query touching novels fails with "column not found".
+     * </p>
+     */
+    @ColumnDefault("'en'")
     @Column(name = "language", length = 16, nullable = false)
     private String language = DEFAULT_LANGUAGE;
 
