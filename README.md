@@ -192,6 +192,44 @@ cp ~/books/*.epub ~/apps/novel-browse/data/epub/武侠修真/
 - 关闭：`app.db.snapshot.enabled=false`
 - 目录里已有 EPUB 仍会按内容哈希去重，快照恢复后不会重复导入
 
+## 读者账户（注册 / 登录 / 书架 / 进度 / 评论）
+
+邮箱注册（用户名 + 邮箱 + 密码），登录后写入 cookie， **默认保留 30 天**：
+
+```bash
+# 注册（成功即登录，响应头带 Set-Cookie）
+curl -i -X POST -H 'Content-Type: application/json' \
+  -d '{"username":"reader","email":"reader@example.com","password":"secret123"}' \
+  http://localhost:8080/auth/register
+# Set-Cookie: nb_session=<token>; Path=/; Max-Age=2592000; HttpOnly; SameSite=Lax
+
+# 登录（email 也可填用户名）/ 当前用户 / 登出
+curl -c cookies.txt -X POST -H 'Content-Type: application/json' \
+  -d '{"email":"reader@example.com","password":"secret123"}' http://localhost:8080/auth/login
+curl -b cookies.txt http://localhost:8080/auth/me
+curl -b cookies.txt -X POST http://localhost:8080/auth/logout
+```
+
+**权限边界**：首页、分类、搜索、排行、书目详情、章节正文等浏览接口 **免登录**；点赞、收藏、阅读进度、评论评分 **必须登录**（未登录返回
+401）。
+
+| 能力       | 接口                                                                                                           |
+|------------|----------------------------------------------------------------------------------------------------------------|
+| 点赞       | `GET /me/likes`（分页）、`GET/POST/DELETE /me/likes/{novelId}`（POST 幂等，一人只记一次）                      |
+| 书架收藏   | `GET /me/favorites`（分页）、`GET/POST/DELETE /me/favorites/{novelId}`（POST 幂等）                            |
+| 阅读进度   | `GET /me/progress`（分页）、`GET/PUT/DELETE /me/progress/{novelId}`（PUT 传 `{"chapterNo":2}`）                |
+| 评论与评分 | `GET /novels/{id}/reviews`（公开分页）、`GET/PUT/DELETE /me/reviews/{novelId}`（`{"rating":5,"content":"…"}`） |
+
+- cookie 里只有随机 token，服务端 `nb_user_session` 记录归属与过期时间：登出即删除、可在服务端强制失效；会话过期返回 401
+- 点赞回写 `nb_novel.like_count`；同一读者重复点赞只记一次，取消后可再点
+- 密码用 BCrypt 存储，接口永不返回密码或哈希；用户名/邮箱唯一（忽略大小写），密码 8-64 位
+- 登录错误统一 401 `Email or password is incorrect`（不区分账号是否存在，避免枚举）
+- 一个读者对一本书只有一条评论（`PUT` 即发表或更新）；评分回写 `nb_novel.rating`（星均分 ×2，0-10 一位小数）与 `rating_count`
+- 前端跨域请求需带凭证（`fetch(..., { credentials: 'include' })` / axios `withCredentials: true`），服务端已开
+  `Access-Control-Allow-Credentials`
+- 相关配置：`app.auth.session-days`（30）、`cookie-name`（`nb_session`）、`cookie-secure`（HTTPS 站点设 true）、`cookie-same-site`
+  （Lax）
+
 ## 书籍封面
 
 封面分两种来源，**接口统一用 `coverUrl` 返回**，前端优先用图片、无图时退回 `coverColor` + `coverMark` 的渐变+首字方案：
@@ -270,8 +308,11 @@ app:
   cors:
     allowed-origins: '*'      # 生产环境请改为前端具体域名，如 https://example.com
     allowed-methods: GET,POST,PUT,DELETE,OPTIONS
-    allow-credentials: false
+    allow-credentials: true   # 读者账户靠 cookie 维持登录态，前端跨域必须允许携带凭证
 ```
+
+带凭证时浏览器要求 `Access-Control-Allow-Origin` 是具体来源而不是 `*`：本服务用 `allowedOriginPatterns`，会原样回显请求的
+Origin，因此填 `*` 也能工作；但生产环境仍建议写成具体域名。
 
 ## 缓存说明
 

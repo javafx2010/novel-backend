@@ -69,6 +69,20 @@ public class Novel implements Serializable {
     @Column(nullable = false)
     private Double rating = 0.0;
 
+    /**
+     * How many reader ratings stand behind {@link #rating}
+     */
+    @ColumnDefault("0")
+    @Column(name = "rating_count", nullable = false)
+    private Integer ratingCount = 0;
+
+    /**
+     * How many readers liked this book
+     */
+    @ColumnDefault("0")
+    @Column(name = "like_count", nullable = false)
+    private Integer likeCount = 0;
+
     @Column(nullable = false)
     private Integer chapterCount = 0;
 
@@ -196,6 +210,22 @@ public class Novel implements Serializable {
 
     public void setRating(Double rating) {
         this.rating = rating;
+    }
+
+    public Integer getRatingCount() {
+        return ratingCount;
+    }
+
+    public void setRatingCount(Integer ratingCount) {
+        this.ratingCount = ratingCount;
+    }
+
+    public Integer getLikeCount() {
+        return likeCount;
+    }
+
+    public void setLikeCount(Integer likeCount) {
+        this.likeCount = likeCount;
     }
 
     public Integer getChapterCount() {
