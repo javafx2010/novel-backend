@@ -190,6 +190,39 @@ cp ~/books/*.epub ~/apps/novel-browse/data/epub/武侠修真/
 - EPUB 没有封面时 `coverUrl` 为 null（全局 `non_null`，字段不输出），前端用渐变兜底
 - 删除书目会同时删除其封面文件
 
+## MCP（Model Context Protocol）
+
+内置 MCP 服务端（自实现的 JSON-RPC 2.0，无 SDK 依赖），让 AI 客户端直接上传 EPUB、改书目：
+
+```text
+POST /mcp    JSON-RPC 2.0（Streamable HTTP，单条 JSON 响应）
+GET  /mcp    SSE 心跳流    DELETE /mcp  结束会话（204）
+```
+
+| 工具 | 必填 | 可选 | 说明 |
+| --- | --- | --- | --- |
+| `upload_epub` | `fileName`、`contentBase64` | `categoryId`、`categoryName`、`status`、`tags` | 导入 EPUB：解析章节 + 提取封面 + 落盘，内容哈希重复会拒绝 |
+| `update_novel` | `id` | `title`、`author`、`description`、`status`、`tags`、`categoryId` | 更新书目元数据，只改传入字段，并失效相关缓存 |
+| `list_categories` | — | — | 查分类 id（上传前用） |
+| `list_novels` | — | `limit`（1-100，默认 20） | 查书目 id（更新前用） |
+
+- 鉴权：`app.mcp.token`（留空回退 `app.admin.token`），请求头 `Authorization: Bearer <token>` 或 `X-Mcp-Token`
+- `app.mcp.enabled=false` 关闭端点（`/mcp` 返回 404）；`/mcp` 默认免接口签名
+- 参数错误、分类/书籍不存在等以 `isError=true` 的 result 返回（附带可选值提示），不是协议级错误
+
+```bash
+# 列工具
+curl -X POST http://localhost:8080/mcp -H 'Content-Type: application/json' \
+     -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
+# 上传（base64）
+curl -X POST http://localhost:8080/mcp -H 'Content-Type: application/json' \
+     -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"upload_epub",
+          "arguments":{"fileName":"book.epub","contentBase64":"<base64>","categoryName":"玄幻奇幻"}}}'
+```
+
+客户端配置：`{"mcpServers":{"novel-browse":{"type":"streamable-http","url":"http://<host>/mcp","headers":{"Authorization":"Bearer <token>"}}}}`
+
 ## 接口签名
 
 所有接口可开启 HMAC-SHA256 签名校验（`app.signature.*`），**密钥为空时不校验**，本地与前端无需改动。

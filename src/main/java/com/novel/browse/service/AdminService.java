@@ -155,6 +155,54 @@ public class AdminService {
     }
 
     /**
+     * Updates the metadata of a novel: only non-blank arguments are applied, the rest is left untouched.
+     *
+     * @param id          novel id
+     * @param title       new title (optional)
+     * @param author      new author (optional)
+     * @param description new description (optional)
+     * @param status      {@code ONGOING} / {@code FINISHED} (optional)
+     * @param tags        comma separated tags (optional)
+     * @param categoryId  target category (optional)
+     */
+    @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.HOME_LIST, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.NOVEL_DETAIL, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.CHAPTER_LIST, allEntries = true)
+    })
+    public Novel updateNovel(Long id, String title, String author, String description,
+                             String status, String tags, Long categoryId) {
+        Novel novel = novelRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Novel not found: id=" + id));
+        if (title != null && !title.isBlank()) {
+            novel.setTitle(TextUtil.truncate(title.trim(), 128));
+        }
+        if (author != null && !author.isBlank()) {
+            novel.setAuthor(TextUtil.truncate(author.trim(), 64));
+        }
+        if (description != null && !description.isBlank()) {
+            novel.setDescription(TextUtil.truncate(description.trim(), 2000));
+        }
+        if (tags != null && !tags.isBlank()) {
+            novel.setTags(TextUtil.truncate(tags.trim(), 128));
+        }
+        if (status != null && !status.isBlank()) {
+            novel.setStatus(Novel.STATUS_FINISHED.equalsIgnoreCase(status.trim())
+                    ? Novel.STATUS_FINISHED : Novel.STATUS_ONGOING);
+        }
+        if (categoryId != null) {
+            novel.setCategory(categoryRepository.findById(categoryId)
+                    .orElseThrow(() -> new NotFoundException("Category not found: id=" + categoryId)));
+        }
+        novel.setUpdatedAt(LocalDateTime.now());
+        Novel saved = novelRepository.save(novel);
+        log.info("Novel updated: id={} title={} category={} status={}", saved.getId(), saved.getTitle(),
+                saved.getCategory() == null ? null : saved.getCategory().getName(), saved.getStatus());
+        return saved;
+    }
+
+    /**
      * Parses the EPUB and builds the novel with its chapters: maintains chapter count, word count, cover and tags.
      * The caller sets the source file information and persists the result.
      */
