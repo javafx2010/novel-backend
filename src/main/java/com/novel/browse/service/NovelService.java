@@ -43,8 +43,21 @@ public class NovelService {
         this.settings = settings;
     }
 
+    /** Every category of every language, in navigation order */
     public List<Category> listCategories() {
         return categoryRepository.findAllByOrderBySortNoAsc();
+    }
+
+    /**
+     * Categories of one language, in navigation order.
+     *
+     * @param language language tag ({@code en} / {@code zh_CN}…), blank for every language
+     */
+    public List<Category> listCategories(String language) {
+        if (language == null || language.isBlank()) {
+            return listCategories();
+        }
+        return categoryRepository.findAllByLanguageOrderBySortNoAsc(BookLanguage.normalize(language, settings));
     }
 
     public Category getCategory(Long id) {
@@ -53,23 +66,36 @@ public class NovelService {
     }
 
     /**
-     * Finds a category by name and creates it when missing: the site ships without any seed data,
-     * so categories appear when the first book of a genre is imported (upload, MCP or startup scan).
+     * Finds the category of one language and creates it when missing: the site ships without any seed data,
+     * so categories appear when the first book of that language is imported (upload, MCP or startup scan).
+     *
+     * @param name        category name, blank falls back to the default name
+     * @param language    language of the category (the language of the book being imported)
+     * @param description description in that language, applied when the category is created and updated
+     *                    when a different one is supplied later; blank keeps the current text
      */
     @Transactional
-    public Category findOrCreateCategory(String name) {
+    public Category findOrCreateCategory(String name, String language, String description) {
         String target = name == null || name.isBlank() ? DEFAULT_CATEGORY_NAME : name.trim();
-        return categoryRepository.findByName(target).orElseGet(() -> {
+        String tag = BookLanguage.normalize(language, settings);
+        Category category = categoryRepository.findByNameAndLanguage(target, tag).orElseGet(() -> {
             int maxSort = categoryRepository.findAllByOrderBySortNoAsc().stream()
                     .map(Category::getSortNo)
                     .filter(Objects::nonNull)
                     .mapToInt(Integer::intValue)
                     .max()
                     .orElse(0);
-            Category created = categoryRepository.save(new Category(target, "Created on import", maxSort + 1));
-            log.info("Category created on import: {} (id={}, sortNo={})", target, created.getId(), created.getSortNo());
+            Category created = categoryRepository.save(new Category(target, "Created on import", maxSort + 1, tag));
+            log.info("Category created on import: {} (id={}, language={}, sortNo={})", target, created.getId(), tag,
+                    created.getSortNo());
             return created;
         });
+        if (description != null && !description.isBlank()
+                && !description.trim().equals(category.getDescription())) {
+            category.setDescription(description.trim());
+            categoryRepository.save(category);
+        }
+        return category;
     }
 
     @Cacheable(cacheNames = CacheNames.NOVEL_DETAIL, key = "#id")
@@ -86,28 +112,35 @@ public class NovelService {
         return novelRepository.save(novel);
     }
 
-    /** Hot ranking: ordered by view count */
-    @Cacheable(cacheNames = CacheNames.HOME_LIST, key = "'hot'")
-    public List<Novel> hotList() {
-        return novelRepository.findTop10ByOrderByViewCountDesc();
+    /** Hot ranking: ordered by view count; {@code language} restricts the version */
+    @Cacheable(cacheNames = CacheNames.HOME_LIST, key = "'hot:' + #language")
+    public List<Novel> hotList(String language) {
+        return top(language, 10, Sort.by(Sort.Direction.DESC, "viewCount"));
     }
 
-    /** Featured: ordered by rating */
-    @Cacheable(cacheNames = CacheNames.HOME_LIST, key = "'recommend'")
-    public List<Novel> recommendList() {
-        return novelRepository.findTop8ByOrderByRatingDesc();
+    /** Featured: ordered by rating; {@code language} restricts the version */
+    @Cacheable(cacheNames = CacheNames.HOME_LIST, key = "'recommend:' + #language")
+    public List<Novel> recommendList(String language) {
+        return top(language, 8, Sort.by(Sort.Direction.DESC, "rating", "viewCount"));
     }
 
-    /** Latest updates */
-    @Cacheable(cacheNames = CacheNames.HOME_LIST, key = "'latest'")
-    public List<Novel> latestUpdatedList() {
-        return novelRepository.findTop8ByOrderByUpdatedAtDesc();
+    /** Latest updates; {@code language} restricts the version */
+    @Cacheable(cacheNames = CacheNames.HOME_LIST, key = "'latest:' + #language")
+    public List<Novel> latestUpdatedList(String language) {
+        return top(language, 8, Sort.by(Sort.Direction.DESC, "updatedAt"));
     }
 
-    /** Completed novels recommendation */
-    public Page<Novel> finishedPage(int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        return novelRepository.findByStatusOrderByViewCountDesc(Novel.STATUS_FINISHED, pageable);
+    /** Completed novels recommendation; {@code language} restricts the version */
+    public Page<Novel> finishedPage(String language, int page, int size) {
+        Specification<Novel> finished = (root, query, builder) ->
+                builder.equal(root.get("status"), Novel.STATUS_FINISHED);
+        return novelRepository.findAll(languageSpec(language).and(finished),
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "viewCount")));
+    }
+
+    /** First {@code size} novels of a listing, restricted to one language when it is given */
+    private List<Novel> top(String language, int size, Sort sort) {
+        return novelRepository.findAll(languageSpec(language), PageRequest.of(0, size, sort)).getContent();
     }
 
     /**
@@ -176,19 +209,27 @@ public class NovelService {
         return (root, query, builder) -> builder.equal(root.get("category"), category);
     }
 
-    /** Same category recommendation: excludes the novel itself */
+    /**
+     * Same category recommendation: the language of the viewed edition only, and never another language
+     * version of the same work (those are reachable through {@code GET /novels/{id}/versions}).
+     */
     @Cacheable(cacheNames = CacheNames.HOME_LIST, key = "'related:' + #novel.id + ':' + #limit")
     public List<Novel> relatedList(Novel novel, int limit) {
         if (novel.getId() == null || novel.getCategory() == null) {
             return List.of();
         }
+        String language = novel.getLanguage();
+        String group = novel.getVersionGroup();
         return novelRepository.findTop6ByCategoryAndIdNotOrderByViewCountDesc(
                         novel.getCategory(), novel.getId()).stream()
+                .filter(item -> language == null || language.equalsIgnoreCase(item.getLanguage()))
+                .filter(item -> group == null || !group.equalsIgnoreCase(item.getVersionGroup()))
                 .limit(limit)
                 .toList();
     }
 
-    public long countAll() {
-        return novelRepository.count();
+    /** Number of novels, restricted to one language version when it is given */
+    public long countAll(String language) {
+        return novelRepository.count(languageSpec(language));
     }
 }

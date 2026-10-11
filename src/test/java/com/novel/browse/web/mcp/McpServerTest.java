@@ -1,6 +1,7 @@
 package com.novel.browse.web.mcp;
 
 import com.novel.browse.config.McpProperties;
+import com.novel.browse.domain.Category;
 import com.novel.browse.domain.Novel;
 import com.novel.browse.i18n.I18nSettings;
 import com.novel.browse.i18n.Messages;
@@ -69,9 +70,10 @@ class McpServerTest {
     @Test
     void toolsListExposesEveryTool() {
         JsonNode tools = readResult(message("tools/list", "{}", 2), "result").path("tools");
-        assertEquals(5, tools.size());
+        assertEquals(6, tools.size());
         assertTrue(tools.toString().contains("upload_epub"));
         assertTrue(tools.toString().contains("update_novel"));
+        assertTrue(tools.toString().contains("delete_novel"));
         assertTrue(tools.toString().contains("list_categories"));
         assertTrue(tools.toString().contains("list_novels"));
         assertTrue(tools.toString().contains("list_novel_versions"));
@@ -99,7 +101,7 @@ class McpServerTest {
         assertTrue(result.path("isError").asBoolean(), result.toString());
         assertTrue(textOf(result).contains("Only EPUB files (.epub) are supported"), textOf(result));
         verify(adminService, never()).upload(any(byte[].class), anyString(), any(), any(), any(), any(),
-                any(), any());
+                any(), any(), any());
     }
 
     @Test
@@ -114,7 +116,7 @@ class McpServerTest {
         Novel novel = new Novel();
         novel.setTitle("新书");
         when(adminService.upload(any(byte[].class), eq("a.epub"), isNull(), eq("玄幻奇幻"), any(), any(),
-                any(), any()))
+                any(), any(), any()))
                 .thenReturn(novel);
         JsonNode result = callTool("upload_epub",
                 "{\"fileName\":\"a.epub\",\"contentBase64\":\"AA==\",\"categoryName\":\"玄幻奇幻\"}");
@@ -125,7 +127,7 @@ class McpServerTest {
     @Test
     void uploadPassesLanguageAndVersionGroupThrough() {
         Novel novel = edition("剑痕录", "zh_CN", "group-1");
-        when(adminService.upload(any(byte[].class), eq("a.epub"), isNull(), isNull(), isNull(), isNull(),
+        when(adminService.upload(any(byte[].class), eq("a.epub"), isNull(), isNull(), isNull(), isNull(), isNull(),
                 eq("zh_CN"), eq("group-1")))
                 .thenReturn(novel);
         JsonNode result = callTool("upload_epub",
@@ -135,6 +137,34 @@ class McpServerTest {
         assertEquals("zh_CN", result.path("structuredContent").path("language").asString());
         // the group travels with the result, so another translation can be linked to this work
         assertEquals("group-1", result.path("structuredContent").path("versionGroup").asString());
+    }
+
+    @Test
+    void uploadPassesTheCategoryDescriptionThrough() {
+        Novel novel = edition("剑痕录", "zh_CN", "group-1");
+        when(adminService.upload(any(byte[].class), eq("a.epub"), isNull(), eq("玄幻奇幻"),
+                eq("御剑乘风，问长生何处"), isNull(), isNull(), eq("zh_CN"), isNull()))
+                .thenReturn(novel);
+        JsonNode result = callTool("upload_epub",
+                "{\"fileName\":\"a.epub\",\"contentBase64\":\"AA==\",\"categoryName\":\"玄幻奇幻\","
+                        + "\"categoryDescription\":\"御剑乘风，问长生何处\",\"language\":\"zh_CN\"}");
+        assertFalse(result.path("isError").asBoolean(), textOf(result));
+        verify(adminService).upload(any(byte[].class), eq("a.epub"), isNull(), eq("玄幻奇幻"),
+                eq("御剑乘风，问长生何处"), isNull(), isNull(), eq("zh_CN"), isNull());
+    }
+
+    @Test
+    void listCategoriesCanBeRestrictedToOneLanguage() {
+        Category chinese = new Category("玄幻奇幻", "御剑乘风", 1, "zh_CN");
+        chinese.setId(3L);
+        when(novelService.listCategories("zh_CN")).thenReturn(List.of(chinese));
+
+        JsonNode categories = callTool("list_categories", "{\"language\":\"zh_CN\"}")
+                .path("structuredContent").path("categories");
+        assertEquals(1, categories.size());
+        assertEquals("zh_CN", categories.get(0).path("language").asString());
+        assertEquals("御剑乘风", categories.get(0).path("description").asString());
+        verify(novelService).listCategories("zh_CN");
     }
 
     @Test
@@ -184,6 +214,39 @@ class McpServerTest {
         assertTrue(result.path("isError").asBoolean());
         assertTrue(textOf(result).contains("id is required"), textOf(result));
         verify(adminService, never()).updateNovel(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void deleteNovelCallsAdminService() {
+        Novel novel = edition("剑痕录", "zh_CN", "group-1");
+        novel.setId(7L);
+        when(novelService.detail(7L)).thenReturn(novel);
+
+        JsonNode result = callTool("delete_novel", "{\"id\":7}").path("structuredContent");
+        assertEquals(1, result.path("deleted").asInt());
+        assertEquals(7L, result.path("ids").get(0).asLong());
+        verify(adminService).deleteNovel(7L);
+    }
+
+    @Test
+    void deleteNovelCanRemoveTheEntireWork() {
+        Novel zh = edition("剑痕录", "zh_CN", "group-1");
+        zh.setId(7L);
+        Novel en = edition("剑痕录", "en", "group-1");
+        en.setId(8L);
+        when(novelService.versions(7L)).thenReturn(List.of(zh, en));
+
+        JsonNode result = callTool("delete_novel", "{\"id\":7,\"deleteAllVersions\":true}").path("structuredContent");
+        assertEquals(2, result.path("deleted").asInt());
+        verify(adminService).deleteNovel(7L);
+        verify(adminService).deleteNovel(8L);
+    }
+
+    @Test
+    void deleteNovelRequiresAnId() {
+        JsonNode result = callTool("delete_novel", "{}");
+        assertTrue(result.path("isError").asBoolean());
+        verify(adminService, never()).deleteNovel(any(Long.class));
     }
 
     @Test

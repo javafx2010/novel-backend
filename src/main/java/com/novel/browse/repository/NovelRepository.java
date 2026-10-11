@@ -12,14 +12,6 @@ import java.util.Optional;
 
 public interface NovelRepository extends JpaRepository<Novel, Long>, JpaSpecificationExecutor<Novel> {
 
-    Page<Novel> findByStatusOrderByViewCountDesc(String status, Pageable pageable);
-
-    List<Novel> findTop10ByOrderByViewCountDesc();
-
-    List<Novel> findTop8ByOrderByRatingDesc();
-
-    List<Novel> findTop8ByOrderByUpdatedAtDesc();
-
     List<Novel> findTop6ByCategoryAndIdNotOrderByViewCountDesc(Category category, Long novelId);
 
     long countByCategory(Category category);

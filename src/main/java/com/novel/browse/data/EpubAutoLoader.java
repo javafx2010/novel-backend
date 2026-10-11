@@ -4,7 +4,6 @@ import com.novel.browse.domain.Category;
 import com.novel.browse.repository.CategoryRepository;
 import com.novel.browse.repository.NovelRepository;
 import com.novel.browse.service.AdminService;
-import com.novel.browse.service.NovelService;
 import com.novel.browse.service.epub.EpubStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,17 +11,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.file.Files;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Startup scan: subdirectories of the upload directory map one-to-one to novel categories.
  * <ol>
- *   <li>Subdirectory to category: the directory name is the category name, created when missing (sortNo=999, listed last);</li>
+ *   <li>Subdirectory to category: the directory name is the category name of the language of the imported
+ *       EPUB, created when missing (sortNo=max+1, listed last);</li>
  *   <li>Category to subdirectory: missing directories are created for existing categories so EPUB files can be dropped in;</li>
  *   <li>Files are imported with content-hash deduplication, already imported files are skipped, a single failure is logged as ERROR and the scan continues.</li>
  * </ol>
@@ -37,7 +34,6 @@ public class EpubAutoLoader implements CommandLineRunner {
 
     private final EpubStorage epubStorage;
     private final AdminService adminService;
-    private final NovelService novelService;
     private final NovelRepository novelRepository;
     private final CategoryRepository categoryRepository;
 
@@ -57,12 +53,10 @@ public class EpubAutoLoader implements CommandLineRunner {
 
     public EpubAutoLoader(EpubStorage epubStorage,
                           AdminService adminService,
-                          NovelService novelService,
                           NovelRepository novelRepository,
                           CategoryRepository categoryRepository) {
         this.epubStorage = epubStorage;
         this.adminService = adminService;
-        this.novelService = novelService;
         this.novelRepository = novelRepository;
         this.categoryRepository = categoryRepository;
     }
@@ -85,7 +79,6 @@ public class EpubAutoLoader implements CommandLineRunner {
             return;
         }
         long start = System.currentTimeMillis();
-        Map<String, Category> categories = new HashMap<>();
         int imported = 0;
         int skipped = 0;
         int failed = 0;
@@ -102,10 +95,11 @@ public class EpubAutoLoader implements CommandLineRunner {
                 skipped++;
                 continue;
             }
+            // The category is resolved per language inside the import: the same directory may hold several
+            // translations, each of them belongs to the category of its own language
             String categoryName = scanned.categoryName() == null ? defaultCategoryName : scanned.categoryName();
-            Category category = categories.computeIfAbsent(categoryName, this::resolveCategory);
             try {
-                adminService.importFile(scanned.path(), hash, category, defaultStatus);
+                adminService.importFile(scanned.path(), hash, categoryName, defaultStatus);
                 imported++;
             } catch (Exception e) {
                 failed++;
@@ -126,10 +120,5 @@ public class EpubAutoLoader implements CommandLineRunner {
             }
         }
         return created;
-    }
-
-    /** Resolves (or creates) the category for a directory */
-    protected Category resolveCategory(String categoryName) {
-        return novelService.findOrCreateCategory(categoryName);
     }
 }

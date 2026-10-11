@@ -10,5 +10,9 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
 
     List<Category> findAllByOrderBySortNoAsc();
 
-    Optional<Category> findByName(String name);
+    /** Categories of one language, in navigation order */
+    List<Category> findAllByLanguageOrderBySortNoAsc(String language);
+
+    /** The category of one language: the same name in another language is another category */
+    Optional<Category> findByNameAndLanguage(String name, String language);
 }

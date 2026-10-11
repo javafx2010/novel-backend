@@ -90,15 +90,16 @@ public class AdminService {
      * A book already in the library (same title, author and language) is overwritten instead of duplicated;
      * the same work in another language is imported as a separate edition and joins its version group.
      *
-     * @param data         raw EPUB content
-     * @param fileName     original file name
-     * @param categoryId   category id, takes precedence when present
-     * @param categoryName category name, created when it does not exist yet
-     * @param status       serialization status (ONGOING when blank)
-     * @param tags         tags (falls back to the EPUB dc:subject when blank)
-     * @param language     language of this edition ({@code en} / {@code zh_CN}); falls back to the EPUB
-     *                     {@code dc:language}, then to {@code app.i18n.default-locale}
-     * @param versionGroup version group of an existing work the upload belongs to; generated when blank
+     * @param data                raw EPUB content
+     * @param fileName            original file name
+     * @param categoryId          category id, takes precedence when present (must be of the same language)
+     * @param categoryName        category name of that language, created when it does not exist yet
+     * @param categoryDescription description of the category in that language (created / updated with it)
+     * @param status              serialization status (ONGOING when blank)
+     * @param tags                tags (falls back to the EPUB dc:subject when blank)
+     * @param language            language of this edition ({@code en} / {@code zh_CN}); falls back to the EPUB
+     *                            {@code dc:language}, then to {@code app.i18n.default-locale}
+     * @param versionGroup        version group of an existing work the upload belongs to; generated when blank
      */
     @Transactional
     @Caching(evict = {
@@ -109,17 +110,20 @@ public class AdminService {
             @CacheEvict(cacheNames = CacheNames.CHAPTER_NO, allEntries = true)
     })
     public Novel upload(byte[] data, String fileName, Long categoryId, String categoryName,
-                        String status, String tags, String language, String versionGroup) {
+                        String categoryDescription, String status, String tags, String language,
+                        String versionGroup) {
         String hash = epubStorage.sha256(data);
         if (novelRepository.existsBySourceHash(hash)) {
             throw new BadRequestException("error.epub.alreadyImported", hash.substring(0, 8));
         }
-        Category category = resolveCategory(categoryId, categoryName);
+        EpubBook book = epubParser.parse(data, fileName);
+        String edition = resolveLanguage(language, book.language());
+        Category category = resolveCategory(categoryId, categoryName, categoryDescription, edition);
 
         // Store under the category directory: data/epub/<category>/<hash>-<original name>.epub
         String savedPath = epubStorage.save(data, fileName, category.getName());
         try {
-            Novel novel = createNovel(data, fileName, category, status, tags, hash, language, versionGroup);
+            Novel novel = createNovel(book, fileName, category, status, tags, hash, edition, versionGroup);
             String previousFile = novel.getSourceFile();
             novel.setSourceFile(savedPath);
             novel.setSourceHash(hash);
@@ -129,7 +133,7 @@ public class AdminService {
             }
             return novelRepository.save(novel);
         } catch (RuntimeException e) {
-            // On parse or persistence failure remove the stored file so the next startup scan does not import it again
+            // On persistence failure remove the stored file so the next startup scan does not import it again
             epubStorage.delete(savedPath);
             throw e;
         }
@@ -137,10 +141,13 @@ public class AdminService {
 
     /**
      * Imports an EPUB file from disk (used by the startup scan; a book already in the library is overwritten).
+     * The category is resolved in the language of the EPUB, so a directory holding books of several languages
+     * feeds one category per language.
      *
-     * @param file     EPUB file
-     * @param hash     content hash computed by the caller, stored in source_hash
-     * @param category owning category
+     * @param file         EPUB file
+     * @param hash         content hash computed by the caller, stored in source_hash
+     * @param categoryName category name of the language of this file
+     * @param status       serialization status
      */
     @Transactional
     @Caching(evict = {
@@ -150,15 +157,18 @@ public class AdminService {
             @CacheEvict(cacheNames = CacheNames.CHAPTER, allEntries = true),
             @CacheEvict(cacheNames = CacheNames.CHAPTER_NO, allEntries = true)
     })
-    public Novel importFile(Path file, String hash, Category category, String status) {
+    public Novel importFile(Path file, String hash, String categoryName, String status) {
         byte[] data;
         try {
             data = Files.readAllBytes(file);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read the EPUB: " + file, e);
         }
+        EpubBook book = epubParser.parse(data, file.getFileName().toString());
         // Language comes from the EPUB metadata (dc:language) or from app.i18n.default-locale
-        Novel novel = createNovel(data, file.getFileName().toString(), category, status, null, hash, null, null);
+        String edition = resolveLanguage(null, book.language());
+        Category category = resolveCategory(null, categoryName, null, edition);
+        Novel novel = createNovel(book, file.getFileName().toString(), category, status, null, hash, edition, null);
         String previousFile = novel.getSourceFile();
         novel.setSourceFile(epubStorage.relative(file));
         novel.setSourceHash(hash);
@@ -212,14 +222,22 @@ public class AdminService {
                 sourceFile == null ? "none" : sourceFile);
     }
 
-    /** Category of an import: by id, else by name (created when missing), else the default category */
-    private Category resolveCategory(Long categoryId, String categoryName) {
+    /**
+     * Category of an import: by id, else by name in the language of the book (created when missing),
+     * else the default category of that language. A category of another language is rejected.
+     */
+    private Category resolveCategory(Long categoryId, String categoryName, String categoryDescription,
+                                     String language) {
         if (categoryId != null) {
-            return categoryRepository.findById(categoryId)
+            Category category = categoryRepository.findById(categoryId)
                     .orElseThrow(() -> new NotFoundException("error.category.notFound", categoryId));
+            if (!language.equalsIgnoreCase(category.getLanguage())) {
+                throw new BadRequestException("error.category.languageMismatch", category.getLanguage(), language);
+            }
+            return category;
         }
         String name = categoryName == null || categoryName.isBlank() ? defaultCategoryName : categoryName.trim();
-        return novelService.findOrCreateCategory(name);
+        return novelService.findOrCreateCategory(name, language, categoryDescription);
     }
 
     /**
@@ -264,8 +282,13 @@ public class AdminService {
                     ? Novel.STATUS_FINISHED : Novel.STATUS_ONGOING);
         }
         if (categoryId != null) {
-            novel.setCategory(categoryRepository.findById(categoryId)
-                    .orElseThrow(() -> new NotFoundException("error.category.notFound", categoryId)));
+            Category category = categoryRepository.findById(categoryId)
+                    .orElseThrow(() -> new NotFoundException("error.category.notFound", categoryId));
+            if (!novel.getLanguage().equalsIgnoreCase(category.getLanguage())) {
+                throw new BadRequestException("error.category.languageMismatch", category.getLanguage(),
+                        novel.getLanguage());
+            }
+            novel.setCategory(category);
         }
         novel.setUpdatedAt(LocalDateTime.now());
         Novel saved = novelRepository.save(novel);
@@ -278,13 +301,10 @@ public class AdminService {
      * Parses the EPUB and builds the novel with its chapters: maintains language, version group, chapter count,
      * word count, cover and tags. The caller sets the source file information and persists the result.
      */
-    private Novel createNovel(byte[] data, String fileName, Category category, String status, String tags,
-                              String hash, String language, String versionGroup) {
-        EpubBook book = epubParser.parse(data, fileName);
-
+    private Novel createNovel(EpubBook book, String fileName, Category category, String status, String tags,
+                              String hash, String edition, String versionGroup) {
         String title = defaultIfBlank(book.title(), defaultTitle(fileName));
         String author = TextUtil.truncate(defaultIfBlank(book.author(), "Unknown"), 64);
-        String edition = resolveLanguage(language, book.language());
         // Re-importing the same edition (same title, author and language) overwrites the existing entry instead of
         // adding a copy: the content hash is not enough, the same book re-generated with different bytes has a
         // different hash. Another language of the same work is a separate edition.

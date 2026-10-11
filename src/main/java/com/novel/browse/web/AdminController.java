@@ -46,12 +46,16 @@ public class AdminController {
      * {@code dc:language} applies, then {@code app.i18n.default-locale}. Uploading the same work in another
      * language creates a second edition instead of overwriting the first one; both share a version group.
      * {@code versionGroup} links the upload to an existing work explicitly (generated when omitted).
+     * <p>
+     * Categories are per language: {@code categoryName} / {@code categoryDescription} create or update the
+     * category of the language of this edition, and {@code categoryId} must belong to that language too.
      */
     @PostMapping(value = "/novels", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public NovelSummary upload(@RequestPart("file") MultipartFile file,
                                @RequestParam(value = "categoryId", required = false) Long categoryId,
                                @RequestParam(value = "categoryName", required = false) String categoryName,
+                               @RequestParam(value = "categoryDescription", required = false) String categoryDescription,
                                @RequestParam(value = "status", required = false) String status,
                                @RequestParam(value = "tags", required = false) String tags,
                                @RequestParam(value = "language", required = false) String language,
@@ -59,14 +63,14 @@ public class AdminController {
             throws IOException {
         validateEpub(file);
         Novel novel = adminService.upload(file.getBytes(), file.getOriginalFilename(), categoryId, categoryName,
-                status, tags, language, versionGroup);
+                categoryDescription, status, tags, language, versionGroup);
         return NovelSummary.of(novel);
     }
 
-    /** Admin novel list (newest update first) */
+    /** Admin novel list (newest update first); {@code language} restricts it to one language version */
     @GetMapping("/novels")
-    public List<NovelSummary> list() {
-        return adminService.listNovels().stream().map(NovelSummary::of).toList();
+    public List<NovelSummary> list(@RequestParam(required = false) String language) {
+        return adminService.listNovels(language).stream().map(NovelSummary::of).toList();
     }
 
     /** Deletes a novel and its chapters */

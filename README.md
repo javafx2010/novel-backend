@@ -91,7 +91,7 @@ cp deploy.conf.example deploy.conf   # 可选：改端口 / JVM 参数 / 分支
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/home` | 首页聚合：分类、精选、热门、最近更新、完本佳作 |
+| GET | `/home?language=` | 首页聚合：分类、精选、热门、最近更新、完本佳作（可按语言过滤） |
 | GET | `/categories` | 全部分类 |
 | GET | `/categories/{id}` | 分类详情 |
 | GET | `/categories/{id}/novels?sort=hot\|update&language=&page=0&size=12` | 分类书库（分页，可按语言筛选） |
@@ -106,8 +106,8 @@ cp deploy.conf.example deploy.conf   # 可选：改端口 / JVM 参数 / 分支
 | GET | `/novels/chapters/{chapterId}` | 按章节 id 阅读正文 |
 | GET | `/cache` | RocksDB 缓存统计 |
 | DELETE | `/cache/{name}` | 清空指定缓存 |
-| POST | `/admin/novels`（multipart：`file`、`categoryId`，可选 `status`、`tags`、`language`、`versionGroup`） | 上传 EPUB，自动解析入库 |
-| GET | `/admin/novels` | 后台书目列表（按更新时间倒序） |
+| POST | `/admin/novels`（multipart：`file`、`categoryId`，可选 `categoryName`、`categoryDescription`、`status`、`tags`、`language`、`versionGroup`） | 上传 EPUB，自动解析入库（分类按语言分开，可同时写入该语言的分类简介） |
+| GET | `/admin/novels?language=` | 后台书目列表（按更新时间倒序，可按语言过滤） |
 | DELETE | `/admin/novels/{id}` | 删除书目及其章节 |
 
 统一分页结构：
@@ -164,18 +164,28 @@ app:
 - 上传时可传 `language`（`en` / `zh_CN`…）；留空取 EPUB 的 `dc:language`，再取 `app.i18n.default-locale`（默认 `en`）
 - 判重按「书名 + 作者 + 语言」：同语言再传一次是覆盖，**不同语言会新建一条**，两者共享同一个 `version_group`
 - `GET /novels/{id}/versions` 返回同一作品的全部版本（含自身，按语言升序），前端据此做「切到中文版 / English」
-- 书籍列表、检索、排行榜、分类书库都支持 `?language=` 只看某个语言；`NovelSummary` 带 `language` 字段
-- MCP：`upload_epub` 支持 `language` / `versionGroup`、`update_novel` 与 `list_novels` 支持 `language`，新增 `list_novel_versions` 查同一作品的各语言版本
+- 书籍列表、检索、排行榜、分类书库、首页聚合、后台列表都支持 `?language=` 只看某个语言；`NovelSummary` 带 `language` 字段
+- 书籍详情的「同类推荐」只推同分类 + 同语言的书，并跳过同一作品的其它语言版本（那些走 `/novels/{id}/versions`）
+- 不传 `language` 时返回全部语言（同一作品的中英文版会同时出现），前端按站点语言固定传参即可
+- **分类也按语言分开**：`nb_category` 带 `language`（唯一约束 `(name, language)`），中英文站各有自己的「玄幻奇幻」与各自简介；书籍只能挂到同语言的分类下，传错语言的 `categoryId` 返回 400
+- 上传时用 `categoryName` + `categoryDescription` 建立 / 更新该语言分类的简介；启动目录扫描按 EPUB 的 `dc:language` 落到对应语言的分类
+- MCP：`upload_epub` 支持 `language` / `versionGroup` / `categoryDescription`、`update_novel` 与 `list_novels` 支持 `language`，`list_categories` 支持 `language`，新增 `list_novel_versions` 查同一作品的各语言版本
 - 历史数据没有 `version_group` 时视为独立作品；再次上传该书的其他语言会自动补上分组
+- **历史库升级**：分类改为按语言分开后旧的 `name` 唯一约束不会自动摘掉（`ddl-auto=update` 只增不删），历史数据可直接清空：`delete from nb_novel; delete from nb_category;`（或删库让 Hibernate 重建）
 
 ```bash
-curl -X POST -F "file=@sword.epub"    -F "language=zh_CN" http://localhost:8080/admin/novels
-curl -X POST -F "file=@sword-en.epub" -F "language=en"    http://localhost:8080/admin/novels
+curl -X POST -F "file=@sword.epub" -F "language=zh_CN" \
+     -F "categoryName=玄幻奇幻" -F "categoryDescription=御剑乘风，问长生何处" \
+     http://localhost:8080/admin/novels
+curl -X POST -F "file=@sword-en.epub" -F "language=en" \
+     -F "categoryName=玄幻奇幻" -F "categoryDescription=Swords and immortals" \
+     http://localhost:8080/admin/novels
 
 curl http://localhost:8080/novels/7/versions
 # [ {"id":12,"language":"en",...}, {"id":7,"language":"zh_CN",...} ]
 
 curl "http://localhost:8080/novels?language=zh_CN"
+curl "http://localhost:8080/categories?language=zh_CN"
 ```
 
 ## 后台管理：EPUB 上传
@@ -312,9 +322,10 @@ GET  /mcp    SSE 心跳流    DELETE /mcp  结束会话（204）
 
 | 工具 | 必填 | 可选 | 说明 |
 | --- | --- | --- | --- |
-| `upload_epub` | `fileName`、`contentBase64` | `categoryId`、`categoryName`、`status`、`tags`、`language`、`versionGroup` | 导入 EPUB：解析章节 + 提取封面 + 落盘，内容哈希重复会拒绝；**一个作品按语言分版本**（同语言覆盖，换语言新建一本并归到同一版本组） |
+| `upload_epub` | `fileName`、`contentBase64` | `categoryId`、`categoryName`、`categoryDescription`、`status`、`tags`、`language`、`versionGroup` | 导入 EPUB：解析章节 + 提取封面 + 落盘，内容哈希重复会拒绝；**一个作品按语言分版本**（同语言覆盖，换语言新建一本并归到同一版本组） |
 | `update_novel` | `id` | `title`、`author`、`description`、`status`、`tags`、`language`、`categoryId` | 更新书目元数据，只改传入字段，并失效相关缓存 |
-| `list_categories` | — | — | 查分类 id（上传前用） |
+| `delete_novel` | `id` | `deleteAllVersions`（默认 false） | 删除一本书；传 `deleteAllVersions=true` 删除整部作品（同一版本组里的全部语言版本） |
+| `list_categories` | — | `language` | 查分类 id（`language` 只看该语言站的分类） |
 | `list_novels` | — | `limit`（1-100，默认 20）、`language` | 查书目 id（更新前用）；传 `language` 只看某个语言版本 |
 | `list_novel_versions` | `id` | — | 同一作品的全部语言版本（id + `language` + `versionGroup`），给已有书上传译本前用它 |
 

@@ -33,27 +33,27 @@ public class HomeController {
         this.chapterService = chapterService;
     }
 
-    /** Home page aggregates */
+    /** Home page aggregates; {@code language} restricts every block to one language version */
     @GetMapping("/home")
-    public HomeVo home() {
-        List<Novel> recommends = novelService.recommendList();
-        List<Novel> hot = novelService.hotList();
-        List<Novel> latest = novelService.latestUpdatedList();
-        List<Novel> finished = novelService.finishedPage(0, 6).getContent();
+    public HomeVo home(@RequestParam(required = false) String language) {
+        List<Novel> recommends = novelService.recommendList(language);
+        List<Novel> hot = novelService.hotList(language);
+        List<Novel> latest = novelService.latestUpdatedList(language);
+        List<Novel> finished = novelService.finishedPage(language, 0, 6).getContent();
 
         return new HomeVo(
-                novelService.countAll(),
-                novelService.listCategories().stream().map(CategoryDto::of).toList(),
+                novelService.countAll(language),
+                novelService.listCategories(language).stream().map(CategoryDto::of).toList(),
                 toSummaries(recommends),
                 toSummaries(hot),
                 toSummaries(finished),
                 toUpdates(latest));
     }
 
-    /** All categories */
+    /** Categories of one language (all of them when {@code language} is omitted) */
     @GetMapping("/categories")
-    public List<CategoryDto> categories() {
-        return novelService.listCategories().stream().map(CategoryDto::of).toList();
+    public List<CategoryDto> categories(@RequestParam(required = false) String language) {
+        return novelService.listCategories(language).stream().map(CategoryDto::of).toList();
     }
 
     /** Category detail */

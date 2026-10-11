@@ -45,7 +45,8 @@ class DbSnapshotTest {
     void exportAndRestoreRoundTrip() throws Exception {
         Path file = dir.resolve("db-snapshot.sql");
         Files.deleteIfExists(file);
-        categoryRepository.save(new Category("快照分类", "created by the test", 7));
+        categoryRepository.save(new Category("快照分类", "created by the test", 7, "zh_CN"));
+        long before = categoryRepository.count();
 
         snapshot.export();
 
@@ -60,9 +61,12 @@ class DbSnapshotTest {
 
         snapshot.restore();
 
-        assertEquals(1, categoryRepository.count());
-        Category restored = categoryRepository.findAll().getFirst();
-        assertEquals("快照分类", restored.getName());
+        // other test classes share the in-memory database, so compare against the state at export time
+        assertEquals(before, categoryRepository.count());
+        Category restored = categoryRepository.findAll().stream()
+                .filter(category -> "快照分类".equals(category.getName()))
+                .findFirst()
+                .orElseThrow();
         assertEquals("created by the test", restored.getDescription());
         assertEquals(7, restored.getSortNo());
     }

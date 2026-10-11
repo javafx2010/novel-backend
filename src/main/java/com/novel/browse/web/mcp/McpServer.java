@@ -29,8 +29,8 @@ import java.util.Map;
  * <p>
  * The protocol is small enough to implement directly, so this stays free of an MCP SDK dependency.
  * Tools: {@code upload_epub} (import an EPUB, one edition per language), {@code update_novel} (edit metadata),
- * {@code list_categories} and {@code list_novels} (look up ids before calling the two write tools),
- * {@code list_novel_versions} (every language version of one work).
+ * {@code delete_novel} (remove one edition or an entire work), {@code list_categories} and {@code list_novels}
+ * (look up ids before calling the write tools), {@code list_novel_versions} (every language version of one work).
  */
 @Service
 public class McpServer {
@@ -63,8 +63,10 @@ public class McpServer {
                 this::uploadSchema, this::uploadEpub));
         register(new McpTool("update_novel", "mcp.tool.update.description",
                 this::updateSchema, this::updateNovel));
+        register(new McpTool("delete_novel", "mcp.tool.delete.description",
+                this::deleteSchema, this::deleteNovel));
         register(new McpTool("list_categories", "mcp.tool.listCategories.description",
-                this::emptySchema, this::listCategories));
+                this::listCategoriesSchema, this::listCategories));
         register(new McpTool("list_novels", "mcp.tool.listNovels.description",
                 this::listNovelsSchema, this::listNovels));
         register(new McpTool("list_novel_versions", "mcp.tool.listVersions.description",
@@ -262,7 +264,8 @@ public class McpServer {
         }
         Long categoryId = args.hasNonNull("categoryId") ? args.get("categoryId").asLong() : null;
         Novel novel = adminService.upload(data, fileName, categoryId, text(args, "categoryName"),
-                text(args, "status"), text(args, "tags"), text(args, "language"), text(args, "versionGroup"));
+                text(args, "categoryDescription"), text(args, "status"), text(args, "tags"),
+                text(args, "language"), text(args, "versionGroup"));
         return novelNode(novel);
     }
 
@@ -278,12 +281,14 @@ public class McpServer {
         return novelNode(novel);
     }
 
+    /** Categories of one language; the language field of each one tells which library it belongs to */
     private ObjectNode listCategories(JsonNode args) {
         ArrayNode array = mapper.createArrayNode();
-        for (Category category : novelService.listCategories()) {
+        for (Category category : novelService.listCategories(text(args, "language"))) {
             ObjectNode item = array.addObject();
             item.put("id", category.getId());
             item.put("name", category.getName());
+            item.put("language", category.getLanguage());
             if (category.getDescription() != null && !category.getDescription().isBlank()) {
                 item.put("description", category.getDescription());
             }
@@ -315,6 +320,28 @@ public class McpServer {
         ObjectNode result = mapper.createObjectNode();
         result.put("count", array.size());
         result.set("versions", array);
+        return result;
+    }
+
+    /**
+     * Deletes one edition. With {@code deleteAllVersions=true} the entire work (every language version of the
+     * same {@code version_group}) is removed.
+     */
+    private ObjectNode deleteNovel(JsonNode args) {
+        long id = args.path("id").asLong(-1L);
+        if (id <= 0) {
+            throw new BadRequestException("error.mcp.idRequired");
+        }
+        boolean allVersions = args.path("deleteAllVersions").asBoolean(false);
+        List<Novel> targets = allVersions ? novelService.versions(id) : List.of(novelService.detail(id));
+        ArrayNode ids = mapper.createArrayNode();
+        for (Novel target : targets) {
+            adminService.deleteNovel(target.getId());
+            ids.add(target.getId());
+        }
+        ObjectNode result = mapper.createObjectNode();
+        result.put("deleted", ids.size());
+        result.set("ids", ids);
         return result;
     }
 
@@ -358,12 +385,19 @@ public class McpServer {
         return schema;
     }
 
+    private ObjectNode listCategoriesSchema(Messages messages) {
+        ObjectNode properties = mapper.createObjectNode();
+        properties.set("language", stringProperty(messages, "mcp.schema.listCategories.language"));
+        return schema(properties, List.of());
+    }
+
     private ObjectNode uploadSchema(Messages messages) {
         ObjectNode properties = mapper.createObjectNode();
         properties.set("fileName", stringProperty(messages, "mcp.schema.upload.fileName"));
         properties.set("contentBase64", stringProperty(messages, "mcp.schema.upload.contentBase64"));
         properties.set("categoryId", integerProperty(messages, "mcp.schema.upload.categoryId"));
         properties.set("categoryName", stringProperty(messages, "mcp.schema.upload.categoryName"));
+        properties.set("categoryDescription", stringProperty(messages, "mcp.schema.upload.categoryDescription"));
         properties.set("status", stringProperty(messages, "mcp.schema.upload.status"));
         properties.set("tags", stringProperty(messages, "mcp.schema.upload.tags"));
         properties.set("language", stringProperty(messages, "mcp.schema.upload.language"));
@@ -397,6 +431,13 @@ public class McpServer {
         return schema(properties, List.of("id"));
     }
 
+    private ObjectNode deleteSchema(Messages messages) {
+        ObjectNode properties = mapper.createObjectNode();
+        properties.set("id", integerProperty(messages, "mcp.schema.delete.id"));
+        properties.set("deleteAllVersions", booleanProperty(messages, "mcp.schema.delete.deleteAllVersions"));
+        return schema(properties, List.of("id"));
+    }
+
     private ObjectNode schema(ObjectNode properties, List<String> required) {
         ObjectNode schema = mapper.createObjectNode();
         schema.put("type", "object");
@@ -418,6 +459,13 @@ public class McpServer {
     private ObjectNode integerProperty(Messages messages, String descriptionCode) {
         ObjectNode node = mapper.createObjectNode();
         node.put("type", "integer");
+        node.put("description", messages.get(descriptionCode));
+        return node;
+    }
+
+    private ObjectNode booleanProperty(Messages messages, String descriptionCode) {
+        ObjectNode node = mapper.createObjectNode();
+        node.put("type", "boolean");
         node.put("description", messages.get(descriptionCode));
         return node;
     }

@@ -312,7 +312,7 @@ class AccountApiTest {
      */
     private Long newNovel(String title) {
         lastTitle = title + (++seq);
-        Category category = categoryRepository.save(new Category("Cat" + seq, "", seq));
+        Category category = categoryRepository.save(new Category("Cat" + seq, "", seq, "en"));
         Novel novel = new Novel();
         novel.setTitle(lastTitle);
         novel.setAuthor("author" + seq);

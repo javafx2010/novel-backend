@@ -10,12 +10,24 @@ import java.time.LocalDateTime;
 /**
  * Novel master table.
  */
+/**
+ * One row is one language version of a work:
+ * <ul>
+ *   <li>{@code uk_novel_edition(title, author, language)}: the same edition imported twice overwrites the
+ *       existing row instead of creating a copy;</li>
+ *   <li>{@code uk_novel_group_language(version_group, language)}: one work has at most one version per
+ *       language (a null group, from rows imported before version groups existed, is ignored).</li>
+ * </ul>
+ */
 @Entity
 @Table(name = "nb_novel", indexes = {
         @Index(name = "idx_novel_category", columnList = "category_id"),
         @Index(name = "idx_novel_views", columnList = "view_count"),
         @Index(name = "idx_novel_language", columnList = "language"),
         @Index(name = "idx_novel_group", columnList = "version_group")
+}, uniqueConstraints = {
+        @UniqueConstraint(name = "uk_novel_edition", columnNames = {"title", "author", "language"}),
+        @UniqueConstraint(name = "uk_novel_group_language", columnNames = {"version_group", "language"})
 })
 public class Novel implements Serializable {
 
