@@ -175,6 +175,20 @@ public class AdminService {
         return novelRepository.findAll(Sort.by(Sort.Direction.DESC, "updatedAt"));
     }
 
+    /**
+     * Admin novel list restricted to one language version: newest update first.
+     *
+     * @param language language tag ({@code en} / {@code zh_CN}…), blank for every language
+     */
+    @Transactional(readOnly = true)
+    public List<Novel> listNovels(String language) {
+        if (language == null || language.isBlank()) {
+            return listNovels();
+        }
+        return novelRepository.findAllByLanguageIgnoreCaseOrderByUpdatedAtDesc(
+                BookLanguage.normalize(language, settings));
+    }
+
     /** Deletes a novel with its chapters and removes the source EPUB from disk */
     @Transactional
     @Caching(evict = {

@@ -43,4 +43,7 @@ public interface NovelRepository extends JpaRepository<Novel, Long>, JpaSpecific
 
     /** Every language version of a work, ordered by language */
     List<Novel> findByVersionGroupOrderByLanguage(String versionGroup);
+
+    /** Editions of one language, newest update first */
+    List<Novel> findAllByLanguageIgnoreCaseOrderByUpdatedAtDesc(String language);
 }

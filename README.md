@@ -165,7 +165,7 @@ app:
 - 判重按「书名 + 作者 + 语言」：同语言再传一次是覆盖，**不同语言会新建一条**，两者共享同一个 `version_group`
 - `GET /novels/{id}/versions` 返回同一作品的全部版本（含自身，按语言升序），前端据此做「切到中文版 / English」
 - 书籍列表、检索、排行榜、分类书库都支持 `?language=` 只看某个语言；`NovelSummary` 带 `language` 字段
-- MCP：`upload_epub` 支持 `language` / `versionGroup`，`update_novel` 支持 `language`
+- MCP：`upload_epub` 支持 `language` / `versionGroup`、`update_novel` 与 `list_novels` 支持 `language`，新增 `list_novel_versions` 查同一作品的各语言版本
 - 历史数据没有 `version_group` 时视为独立作品；再次上传该书的其他语言会自动补上分组
 
 ```bash
@@ -312,10 +312,13 @@ GET  /mcp    SSE 心跳流    DELETE /mcp  结束会话（204）
 
 | 工具 | 必填 | 可选 | 说明 |
 | --- | --- | --- | --- |
-| `upload_epub` | `fileName`、`contentBase64` | `categoryId`、`categoryName`、`status`、`tags`、`language`、`versionGroup` | 导入 EPUB：解析章节 + 提取封面 + 落盘，内容哈希重复会拒绝 |
+| `upload_epub` | `fileName`、`contentBase64` | `categoryId`、`categoryName`、`status`、`tags`、`language`、`versionGroup` | 导入 EPUB：解析章节 + 提取封面 + 落盘，内容哈希重复会拒绝；**一个作品按语言分版本**（同语言覆盖，换语言新建一本并归到同一版本组） |
 | `update_novel` | `id` | `title`、`author`、`description`、`status`、`tags`、`language`、`categoryId` | 更新书目元数据，只改传入字段，并失效相关缓存 |
 | `list_categories` | — | — | 查分类 id（上传前用） |
-| `list_novels` | — | `limit`（1-100，默认 20） | 查书目 id（更新前用） |
+| `list_novels` | — | `limit`（1-100，默认 20）、`language` | 查书目 id（更新前用）；传 `language` 只看某个语言版本 |
+| `list_novel_versions` | `id` | — | 同一作品的全部语言版本（id + `language` + `versionGroup`），给已有书上传译本前用它 |
+
+- 所有返回书目的工具都带 `language` 与 `versionGroup`：把 `versionGroup` 原样传给 `upload_epub` 即可把新译本挂到同一作品
 
 - 鉴权：`app.mcp.token`（留空回退 `app.admin.token`），请求头 `Authorization: Bearer <token>` 或 `X-Mcp-Token`
 - `app.mcp.enabled=false` 关闭端点（`/mcp` 返回 404）；`/mcp` 默认免接口签名

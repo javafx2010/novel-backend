@@ -28,8 +28,9 @@ import java.util.Map;
  * {@code tools/call} plus the empty {@code resources/list} / {@code prompts/list} responses.
  * <p>
  * The protocol is small enough to implement directly, so this stays free of an MCP SDK dependency.
- * Tools: {@code upload_epub} (import an EPUB), {@code update_novel} (edit metadata),
- * {@code list_categories} and {@code list_novels} (look up ids before calling the two write tools).
+ * Tools: {@code upload_epub} (import an EPUB, one edition per language), {@code update_novel} (edit metadata),
+ * {@code list_categories} and {@code list_novels} (look up ids before calling the two write tools),
+ * {@code list_novel_versions} (every language version of one work).
  */
 @Service
 public class McpServer {
@@ -66,6 +67,8 @@ public class McpServer {
                 this::emptySchema, this::listCategories));
         register(new McpTool("list_novels", "mcp.tool.listNovels.description",
                 this::listNovelsSchema, this::listNovels));
+        register(new McpTool("list_novel_versions", "mcp.tool.listVersions.description",
+                this::listVersionsSchema, this::listNovelVersions));
     }
 
     /** Tools exposed by {@code tools/list} */
@@ -260,7 +263,7 @@ public class McpServer {
         Long categoryId = args.hasNonNull("categoryId") ? args.get("categoryId").asLong() : null;
         Novel novel = adminService.upload(data, fileName, categoryId, text(args, "categoryName"),
                 text(args, "status"), text(args, "tags"), text(args, "language"), text(args, "versionGroup"));
-        return toNode(NovelSummary.of(novel));
+        return novelNode(novel);
     }
 
     private ObjectNode updateNovel(JsonNode args) {
@@ -272,7 +275,7 @@ public class McpServer {
         Novel novel = adminService.updateNovel(id, text(args, "title"), text(args, "author"),
                 text(args, "description"), text(args, "status"), text(args, "tags"), categoryId,
                 text(args, "language"));
-        return toNode(NovelSummary.of(novel));
+        return novelNode(novel);
     }
 
     private ObjectNode listCategories(JsonNode args) {
@@ -293,11 +296,25 @@ public class McpServer {
     private ObjectNode listNovels(JsonNode args) {
         int limit = (int) Math.min(MAX_LIST_LIMIT, Math.max(1, args.path("limit").asLong(20)));
         ArrayNode array = mapper.createArrayNode();
-        adminService.listNovels().stream().limit(limit)
-                .forEach(novel -> array.add(toNode(NovelSummary.of(novel))));
+        adminService.listNovels(text(args, "language")).stream().limit(limit)
+                .forEach(novel -> array.add(novelNode(novel)));
         ObjectNode result = mapper.createObjectNode();
         result.put("count", array.size());
         result.set("novels", array);
+        return result;
+    }
+
+    /** Every language version of one work, the requested edition included */
+    private ObjectNode listNovelVersions(JsonNode args) {
+        long id = args.path("id").asLong(-1L);
+        if (id <= 0) {
+            throw new BadRequestException("error.mcp.idRequired");
+        }
+        ArrayNode array = mapper.createArrayNode();
+        novelService.versions(id).forEach(novel -> array.add(novelNode(novel)));
+        ObjectNode result = mapper.createObjectNode();
+        result.put("count", array.size());
+        result.set("versions", array);
         return result;
     }
 
@@ -311,6 +328,18 @@ public class McpServer {
 
     private ObjectNode toNode(Object value) {
         return (ObjectNode) mapper.valueToTree(value);
+    }
+
+    /**
+     * A novel as JSON: the public fields plus {@code versionGroup}, so a caller can upload another
+     * translation of the same work with {@code upload_epub(versionGroup: ...)}.
+     */
+    private ObjectNode novelNode(Novel novel) {
+        ObjectNode node = toNode(NovelSummary.of(novel));
+        if (novel.getVersionGroup() != null && !novel.getVersionGroup().isBlank()) {
+            node.put("versionGroup", novel.getVersionGroup());
+        }
+        return node;
     }
 
     private String text(JsonNode args, String field) {
@@ -358,7 +387,14 @@ public class McpServer {
     private ObjectNode listNovelsSchema(Messages messages) {
         ObjectNode properties = mapper.createObjectNode();
         properties.set("limit", integerProperty(messages, "mcp.schema.listNovels.limit"));
+        properties.set("language", stringProperty(messages, "mcp.schema.listNovels.language"));
         return schema(properties, List.of());
+    }
+
+    private ObjectNode listVersionsSchema(Messages messages) {
+        ObjectNode properties = mapper.createObjectNode();
+        properties.set("id", integerProperty(messages, "mcp.schema.listVersions.id"));
+        return schema(properties, List.of("id"));
     }
 
     private ObjectNode schema(ObjectNode properties, List<String> required) {

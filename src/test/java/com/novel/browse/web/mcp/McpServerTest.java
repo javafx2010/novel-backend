@@ -67,13 +67,14 @@ class McpServerTest {
     }
 
     @Test
-    void toolsListExposesTheFourTools() {
+    void toolsListExposesEveryTool() {
         JsonNode tools = readResult(message("tools/list", "{}", 2), "result").path("tools");
-        assertEquals(4, tools.size());
+        assertEquals(5, tools.size());
         assertTrue(tools.toString().contains("upload_epub"));
         assertTrue(tools.toString().contains("update_novel"));
         assertTrue(tools.toString().contains("list_categories"));
         assertTrue(tools.toString().contains("list_novels"));
+        assertTrue(tools.toString().contains("list_novel_versions"));
     }
 
     @Test
@@ -119,6 +120,62 @@ class McpServerTest {
                 "{\"fileName\":\"a.epub\",\"contentBase64\":\"AA==\",\"categoryName\":\"玄幻奇幻\"}");
         assertFalse(result.path("isError").asBoolean(), textOf(result));
         assertEquals("新书", result.path("structuredContent").path("title").asString());
+    }
+
+    @Test
+    void uploadPassesLanguageAndVersionGroupThrough() {
+        Novel novel = edition("剑痕录", "zh_CN", "group-1");
+        when(adminService.upload(any(byte[].class), eq("a.epub"), isNull(), isNull(), isNull(), isNull(),
+                eq("zh_CN"), eq("group-1")))
+                .thenReturn(novel);
+        JsonNode result = callTool("upload_epub",
+                "{\"fileName\":\"a.epub\",\"contentBase64\":\"AA==\",\"language\":\"zh_CN\","
+                        + "\"versionGroup\":\"group-1\"}");
+        assertFalse(result.path("isError").asBoolean(), textOf(result));
+        assertEquals("zh_CN", result.path("structuredContent").path("language").asString());
+        // the group travels with the result, so another translation can be linked to this work
+        assertEquals("group-1", result.path("structuredContent").path("versionGroup").asString());
+    }
+
+    @Test
+    void listNovelsCanBeRestrictedToOneLanguage() {
+        when(adminService.listNovels("zh_CN")).thenReturn(List.of(edition("剑痕录", "zh_CN", "group-1")));
+
+        JsonNode result = callTool("list_novels", "{\"language\":\"zh_CN\"}");
+        JsonNode novels = result.path("structuredContent").path("novels");
+        assertEquals(1, novels.size());
+        assertEquals("zh_CN", novels.get(0).path("language").asString());
+        verify(adminService).listNovels("zh_CN");
+    }
+
+    @Test
+    void listNovelVersionsReturnsEveryLanguageOfAWork() {
+        when(novelService.versions(7L)).thenReturn(List.of(edition("剑痕录", "en", "group-1"),
+                edition("剑痕录", "zh_CN", "group-1")));
+
+        JsonNode versions = callTool("list_novel_versions", "{\"id\":7}").path("structuredContent").path("versions");
+        assertEquals(2, versions.size());
+        assertEquals("en", versions.get(0).path("language").asString());
+        assertEquals("zh_CN", versions.get(1).path("language").asString());
+        assertEquals("group-1", versions.get(0).path("versionGroup").asString());
+    }
+
+    @Test
+    void listNovelVersionsRequiresAnId() {
+        JsonNode result = callTool("list_novel_versions", "{}");
+        assertTrue(result.path("isError").asBoolean());
+        verify(novelService, never()).versions(any(Long.class));
+    }
+
+    @Test
+    void updatePassesTheLanguageThrough() {
+        when(adminService.updateNovel(eq(7L), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                eq("en")))
+                .thenReturn(edition("剑痕录", "en", "group-1"));
+
+        JsonNode result = callTool("update_novel", "{\"id\":7,\"language\":\"en\"}");
+        assertFalse(result.path("isError").asBoolean(), textOf(result));
+        assertEquals("en", result.path("structuredContent").path("language").asString());
     }
 
     @Test
@@ -169,5 +226,13 @@ class McpServerTest {
 
     private String textOf(JsonNode result) {
         return result.path("content").path(0).path("text").asString("");
+    }
+
+    private static Novel edition(String title, String language, String versionGroup) {
+        Novel novel = new Novel();
+        novel.setTitle(title);
+        novel.setLanguage(language);
+        novel.setVersionGroup(versionGroup);
+        return novel;
     }
 }
