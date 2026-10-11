@@ -38,6 +38,11 @@ app:
     allowed-methods: GET,POST,PUT,DELETE,OPTIONS
     # 读者账户靠 cookie 维持登录态，前端跨域（不同端口）必须允许携带凭证
     allow-credentials: true
+  i18n:
+    # 多语言：接口返回的 message 按请求语言输出（资源文件 src/main/resources/i18n/messages*.properties）
+    # 语言来源：?lang= 参数 > Accept-Language 请求头 > default-locale；不在 supported-locales 内一律回退默认语言
+    default-locale: en
+    supported-locales: [ 'en', 'zh_CN' ]
   auth:
     # 读者账户：会话有效期（天），注册/登录后写入同名 cookie（HttpOnly）
     session-days: 30

@@ -1,6 +1,7 @@
 package com.novel.browse.web;
 
 import com.novel.browse.domain.User;
+import com.novel.browse.service.BadRequestException;
 import com.novel.browse.service.NotFoundException;
 import com.novel.browse.service.ProgressService;
 import com.novel.browse.web.dto.PageResult;
@@ -40,7 +41,7 @@ public class ProgressController {
     public ProgressVo get(@CurrentUser User user, @PathVariable Long novelId) {
         ProgressVo progress = progressService.get(user, novelId);
         if (progress == null) {
-            throw new NotFoundException("No reading progress for novel: " + novelId);
+            throw new NotFoundException("error.progress.notFound", novelId);
         }
         return progress;
     }
@@ -49,7 +50,7 @@ public class ProgressController {
     public ProgressVo save(@CurrentUser User user, @PathVariable Long novelId,
                            @RequestBody ProgressRequest body) {
         if (body == null || body.chapterNo() == null) {
-            throw new IllegalArgumentException("chapterNo is required");
+            throw new BadRequestException("error.progress.chapterNoRequired");
         }
         return progressService.save(user, novelId, body.chapterNo());
     }

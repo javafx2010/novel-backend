@@ -33,7 +33,7 @@ public class FavoriteService {
     @Transactional
     public void add(User user, Long novelId) {
         Novel novel = novelRepository.findById(novelId)
-                .orElseThrow(() -> new NotFoundException("Novel not found: " + novelId));
+                .orElseThrow(() -> new NotFoundException("error.novel.notFoundId", novelId));
         if (favoriteRepository.existsByUserIdAndNovelId(user.getId(), novelId)) {
             return;
         }

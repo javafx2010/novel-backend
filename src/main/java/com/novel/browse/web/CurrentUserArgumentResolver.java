@@ -32,6 +32,6 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
         HttpServletRequest request = webRequest.getNativeRequest(HttpServletRequest.class);
         String token = request == null ? null : authService.readToken(request);
         return authService.currentUser(token)
-                .orElseThrow(() -> new UnauthorizedException("Login required"));
+                .orElseThrow(() -> new UnauthorizedException("error.request.loginRequired"));
     }
 }

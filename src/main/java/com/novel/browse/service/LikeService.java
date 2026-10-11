@@ -44,7 +44,7 @@ public class LikeService {
     })
     public LikeStatus like(User user, Long novelId) {
         Novel novel = novelRepository.findById(novelId)
-                .orElseThrow(() -> new NotFoundException("Novel not found: " + novelId));
+                .orElseThrow(() -> new NotFoundException("error.novel.notFoundId", novelId));
         if (!likeRepository.existsByUserIdAndNovelId(user.getId(), novelId)) {
             UserLike like = new UserLike();
             like.setUser(user);
@@ -68,14 +68,14 @@ public class LikeService {
             novelRepository.findById(novelId).ifPresent(this::refreshCount);
         }
         Novel novel = novelRepository.findById(novelId)
-                .orElseThrow(() -> new NotFoundException("Novel not found: " + novelId));
+                .orElseThrow(() -> new NotFoundException("error.novel.notFoundId", novelId));
         return new LikeStatus(novelId, false, novel.getLikeCount());
     }
 
     @Transactional(readOnly = true)
     public LikeStatus status(User user, Long novelId) {
         Novel novel = novelRepository.findById(novelId)
-                .orElseThrow(() -> new NotFoundException("Novel not found: " + novelId));
+                .orElseThrow(() -> new NotFoundException("error.novel.notFoundId", novelId));
         return new LikeStatus(novelId, likeRepository.existsByUserIdAndNovelId(user.getId(), novelId),
                 novel.getLikeCount());
     }

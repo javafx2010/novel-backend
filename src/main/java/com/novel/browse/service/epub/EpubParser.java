@@ -100,8 +100,7 @@ public class EpubParser {
         }
 
         if (chapters.isEmpty()) {
-            throw new BadRequestException("No chapter content could be parsed from the EPUB: " + fileName
-                    + " (spine items: " + spine.size() + ", skipped: " + skipped + ")");
+            throw new BadRequestException("error.epub.noChapter", fileName, spine.size(), skipped);
         }
         log.info("EPUB parsed: {} - title={}, author={}, chapters={}, skipped={}, cover={}",
                 fileName, title, author, chapters.size(), skipped, cover == null ? "none" : cover.mediaType());
@@ -192,10 +191,10 @@ public class EpubParser {
                 entries.putIfAbsent(entry.getName(), zin.readAllBytes());
             }
         } catch (IOException e) {
-            throw new BadRequestException("Cannot unzip the EPUB (not a valid zip archive): " + fileName);
+            throw new BadRequestException("error.epub.unzipFailed", fileName);
         }
         if (entries.isEmpty()) {
-            throw new BadRequestException("The EPUB is empty or not a valid zip archive: " + fileName);
+            throw new BadRequestException("error.epub.empty", fileName);
         }
         return entries;
     }
@@ -243,12 +242,12 @@ public class EpubParser {
                 return name;
             }
         }
-        throw new BadRequestException("Not a valid EPUB (missing META-INF/container.xml and .opf): " + fileName);
+        throw new BadRequestException("error.epub.invalid", fileName);
     }
 
     private org.w3c.dom.Document parseXml(byte[] data, String name, String fileName) {
         if (data == null) {
-            throw new BadRequestException("Missing file inside the EPUB: " + name);
+            throw new BadRequestException("error.epub.missingEntry", name);
         }
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -260,7 +259,7 @@ public class EpubParser {
             DocumentBuilder builder = factory.newDocumentBuilder();
             return builder.parse(new ByteArrayInputStream(data));
         } catch (Exception e) {
-            throw new BadRequestException("Failed to parse XML inside the EPUB: " + name + " (" + e.getMessage() + ")");
+            throw new BadRequestException("error.epub.xmlFailed", name, e.getMessage());
         }
     }
 
@@ -378,7 +377,7 @@ public class EpubParser {
         try {
             doc = Jsoup.parse(new ByteArrayInputStream(raw), charset, "");
         } catch (IOException e) {
-            throw new BadRequestException("Failed to read chapter: " + href);
+            throw new BadRequestException("error.epub.readChapterFailed", href);
         }
         String docTitle = docTitle(doc, href);
         Element container = contentRoot(doc);

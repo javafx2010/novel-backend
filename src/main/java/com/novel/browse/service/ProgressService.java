@@ -35,12 +35,12 @@ public class ProgressService {
     @Transactional
     public ProgressVo save(User user, Long novelId, Integer chapterNo) {
         Novel novel = novelRepository.findById(novelId)
-                .orElseThrow(() -> new NotFoundException("Novel not found: " + novelId));
+                .orElseThrow(() -> new NotFoundException("error.novel.notFoundId", novelId));
         if (chapterNo == null || chapterNo < 1) {
-            throw new BadRequestException("chapterNo must be at least 1");
+            throw new BadRequestException("error.progress.chapterNoMin");
         }
         if (novel.getChapterCount() != null && novel.getChapterCount() > 0 && chapterNo > novel.getChapterCount()) {
-            throw new BadRequestException("chapterNo must not exceed the chapter count: " + novel.getChapterCount());
+            throw new BadRequestException("error.progress.chapterNoExceeds", novel.getChapterCount());
         }
         ReadingProgress progress = progressRepository.findByUserIdAndNovelId(user.getId(), novelId)
                 .orElseGet(ReadingProgress::new);

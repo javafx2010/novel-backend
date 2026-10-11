@@ -2,6 +2,7 @@ package com.novel.browse.web.signature;
 
 import com.novel.browse.cache.CacheNames;
 import com.novel.browse.config.SignatureProperties;
+import com.novel.browse.i18n.Messages;
 import com.novel.browse.web.dto.ApiError;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ReadListener;
@@ -22,6 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.servlet.LocaleResolver;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -54,11 +56,16 @@ public class SignatureFilter extends OncePerRequestFilter {
 
     private final SignatureProperties properties;
     private final CacheManager cacheManager;
+    private final Messages messages;
+    private final LocaleResolver localeResolver;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
-    public SignatureFilter(SignatureProperties properties, CacheManager cacheManager) {
+    public SignatureFilter(SignatureProperties properties, CacheManager cacheManager,
+                           Messages messages, LocaleResolver localeResolver) {
         this.properties = properties;
         this.cacheManager = cacheManager;
+        this.messages = messages;
+        this.localeResolver = localeResolver;
     }
 
     @Override
@@ -82,10 +89,10 @@ public class SignatureFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
         byte[] body = isMultipart(request) ? new byte[0] : request.getInputStream().readAllBytes();
-        String rejection = verify(request, body);
+        Rejection rejection = verify(request, body);
         if (rejection != null) {
-            log.warn("Signature rejected: {} {} ({})", request.getMethod(), request.getRequestURI(), rejection);
-            writeUnauthorized(response, request.getRequestURI(), rejection);
+            log.warn("Signature rejected: {} {} ({})", request.getMethod(), request.getRequestURI(), rejection.code());
+            writeUnauthorized(response, request, rejection);
             return;
         }
         if (isMultipart(request)) {
@@ -95,44 +102,44 @@ public class SignatureFilter extends OncePerRequestFilter {
         }
     }
 
-    /** Returns a rejection reason, or {@code null} when the request is accepted */
-    private String verify(HttpServletRequest request, byte[] body) {
+    /** Returns the code of the rejection reason, or {@code null} when the request is accepted */
+    private Rejection verify(HttpServletRequest request, byte[] body) {
         String appKey = request.getHeader(HEADER_APP_KEY);
         String timestamp = request.getHeader(HEADER_TIMESTAMP);
         String nonce = request.getHeader(HEADER_NONCE);
         String signature = request.getHeader(HEADER_SIGNATURE);
 
         if (isBlank(appKey) && !isBlank(properties.getAppKey())) {
-            return "Missing signature header: " + HEADER_APP_KEY;
+            return new Rejection("error.signature.missingHeader", HEADER_APP_KEY);
         }
         if (isBlank(timestamp) || isBlank(nonce) || isBlank(signature)) {
-            return "Missing signature header: " + headerOf(timestamp, nonce, signature);
+            return new Rejection("error.signature.missingHeader", headerOf(timestamp, nonce, signature));
         }
         if (!isBlank(properties.getAppKey()) && !properties.getAppKey().equals(appKey)) {
-            return "Invalid " + HEADER_APP_KEY;
+            return new Rejection("error.signature.invalidAppKey", HEADER_APP_KEY);
         }
         long ts;
         try {
             ts = parseTimestamp(timestamp.trim());
         } catch (NumberFormatException e) {
-            return "Invalid " + HEADER_TIMESTAMP;
+            return new Rejection("error.signature.invalidTimestamp", HEADER_TIMESTAMP);
         }
         long skew = Math.abs(System.currentTimeMillis() / 1000 - ts);
         if (skew > properties.getTimeWindowSeconds()) {
-            return "Request timestamp out of the allowed window (" + properties.getTimeWindowSeconds() + "s)";
+            return new Rejection("error.signature.timestampOutOfWindow", properties.getTimeWindowSeconds());
         }
         if (nonce.length() > MAX_NONCE_LENGTH) {
-            return "Invalid " + HEADER_NONCE;
+            return new Rejection("error.signature.invalidNonce", HEADER_NONCE);
         }
 
         String expected = SignatureVerifier.hmacSha256Hex(properties.getSecret(),
                 SignatureVerifier.canonical(request.getMethod(), request.getRequestURI(),
                         String.valueOf(ts), nonce, SignatureVerifier.sha256Hex(body)));
         if (!SignatureVerifier.matches(expected, signature.trim().toLowerCase(Locale.ROOT))) {
-            return "Invalid signature";
+            return new Rejection("error.signature.invalid");
         }
         if (!registerNonce(nonce)) {
-            return "Replayed request (nonce already used)";
+            return new Rejection("error.signature.replayed");
         }
         return null;
     }
@@ -152,14 +159,21 @@ public class SignatureFilter extends OncePerRequestFilter {
     }
 
     /** Same shape as {@link ApiError}, written by hand to stay free of a JSON library */
-    private void writeUnauthorized(HttpServletResponse response, String uri, String message)
+    private void writeUnauthorized(HttpServletResponse response, HttpServletRequest request, Rejection rejection)
             throws IOException {
+        String uri = request.getRequestURI();
+        // The filter runs before the DispatcherServlet sets the locale, so it is resolved from the request
+        String message = messages.get(localeResolver.resolveLocale(request), rejection.code(), rejection.args());
         response.setStatus(HttpStatus.UNAUTHORIZED.value());
         response.setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
         response.getWriter().write(String.format(Locale.ROOT,
                 "{\"timestamp\":\"%s\",\"status\":%d,\"error\":\"Unauthorized\",\"message\":\"%s\",\"path\":\"%s\"}",
                 Instant.now(), HttpStatus.UNAUTHORIZED.value(), jsonEscape(message), jsonEscape(uri)));
+    }
+
+    /** Rejection reason: a message code plus its arguments, resolved in the language of the request */
+    private record Rejection(String code, Object... args) {
     }
 
     private static String jsonEscape(String value) {

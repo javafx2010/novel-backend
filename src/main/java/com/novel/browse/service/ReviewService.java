@@ -45,13 +45,13 @@ public class ReviewService {
     })
     public ReviewVo save(User user, Long novelId, Integer rating, String content) {
         Novel novel = novelRepository.findById(novelId)
-                .orElseThrow(() -> new NotFoundException("Novel not found: " + novelId));
+                .orElseThrow(() -> new NotFoundException("error.novel.notFoundId", novelId));
         if (rating == null || rating < Review.MIN_RATING || rating > Review.MAX_RATING) {
-            throw new BadRequestException("rating must be between " + Review.MIN_RATING + " and " + Review.MAX_RATING);
+            throw new BadRequestException("error.review.ratingRange", Review.MIN_RATING, Review.MAX_RATING);
         }
         String text = StringUtils.hasText(content) ? content.trim() : null;
         if (text != null && text.length() > 1000) {
-            throw new BadRequestException("Comment must not exceed 1000 characters");
+            throw new BadRequestException("error.review.contentTooLong");
         }
         Review review = reviewRepository.findByUserIdAndNovelId(user.getId(), novelId).orElseGet(Review::new);
         LocalDateTime now = LocalDateTime.now();

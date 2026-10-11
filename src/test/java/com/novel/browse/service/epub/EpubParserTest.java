@@ -65,14 +65,14 @@ class EpubParserTest {
     void rejectNonEpubZip() {
         byte[] plain = zip(entry("a.txt", "hello"));
         BadRequestException e = assertThrows(BadRequestException.class, () -> parser.parse(plain, "plain.epub"));
-        assertTrue(e.getMessage().contains("Not a valid EPUB"), e.getMessage());
+        assertEquals("error.epub.invalid", e.code());
     }
 
     @Test
     void rejectCorruptedZip() {
         BadRequestException e = assertThrows(BadRequestException.class,
                 () -> parser.parse("not a zip".getBytes(StandardCharsets.UTF_8), "bad.epub"));
-        assertTrue(e.getMessage().contains("zip"), e.getMessage());
+        assertEquals("error.epub.empty", e.code());
     }
 
     // ------------------------------------------------------------------

@@ -1,6 +1,7 @@
 package com.novel.browse.web.mcp;
 
 import com.novel.browse.config.McpProperties;
+import com.novel.browse.i18n.Messages;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,13 +35,15 @@ public class McpController {
 
     private final McpServer server;
     private final McpProperties properties;
+    private final Messages messages;
     /** Fallback token: the MCP endpoint performs admin operations, so the admin token applies by default */
     private final String adminToken;
 
-    public McpController(McpServer server, McpProperties properties,
+    public McpController(McpServer server, McpProperties properties, Messages messages,
                          @Value("${app.admin.token:}") String adminToken) {
         this.server = server;
         this.properties = properties;
+        this.messages = messages;
         this.adminToken = adminToken;
         if (requiredToken() == null) {
             log.warn("No MCP token configured (app.mcp.token / app.admin.token), /mcp is open to anyone");
@@ -55,8 +58,7 @@ public class McpController {
             log.warn("Rejected an MCP request with a missing or invalid token from {}", request.getRemoteAddr());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                    .body("{\"error\":\"Unauthorized\",\"message\":\"Missing or invalid MCP token"
-                            + " (Authorization: Bearer <token> or X-Mcp-Token)\"}");
+                    .body("{\"error\":\"Unauthorized\",\"message\":\"" + messages.get("error.mcp.tokenMissing") + "\"}");
         }
         String response = server.handle(body);
         return response == null ? ResponseEntity.accepted().build()

@@ -82,10 +82,10 @@ public class AuthService {
         validatePassword(password);
 
         if (userRepository.existsByUsernameIgnoreCase(name)) {
-            throw new BadRequestException("Username is already taken: " + name);
+            throw new BadRequestException("error.auth.usernameTaken", name);
         }
         if (userRepository.existsByEmailIgnoreCase(mail)) {
-            throw new BadRequestException("Email is already registered: " + mail);
+            throw new BadRequestException("error.auth.emailRegistered", mail);
         }
 
         User user = new User();
@@ -106,14 +106,14 @@ public class AuthService {
     public User login(String identifier, String password) {
         String account = identifier == null ? "" : identifier.trim();
         if (account.isEmpty() || password == null || password.isEmpty()) {
-            throw new BadRequestException("Email and password are required");
+            throw new BadRequestException("error.auth.credentialsRequired");
         }
         Optional<User> found = account.contains("@")
                 ? userRepository.findByEmailIgnoreCase(account)
                 : userRepository.findByUsernameIgnoreCase(account);
         User user = found.orElseThrow(() -> new UnauthorizedException("Email or password is incorrect"));
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
-            throw new UnauthorizedException("Email or password is incorrect");
+            throw new UnauthorizedException("error.auth.badCredentials");
         }
         sessionRepository.deleteByExpiresAtBefore(LocalDateTime.now());
         log.info("User logged in: id={} username={}", user.getId(), user.getUsername());
@@ -218,10 +218,10 @@ public class AuthService {
     private String validateUsername(String username) {
         String name = username == null ? "" : username.trim();
         if (name.length() < USERNAME_MIN || name.length() > USERNAME_MAX) {
-            throw new BadRequestException("Username must be " + USERNAME_MIN + "-" + USERNAME_MAX + " characters");
+            throw new BadRequestException("error.auth.usernameLength", USERNAME_MIN, USERNAME_MAX);
         }
         if (!USERNAME_PATTERN.matcher(name).matches()) {
-            throw new BadRequestException("Username may only contain letters, digits, underscore, hyphen and Chinese characters");
+            throw new BadRequestException("error.auth.usernamePattern");
         }
         return name;
     }
@@ -229,14 +229,14 @@ public class AuthService {
     private String validateEmail(String email) {
         String mail = email == null ? "" : email.trim().toLowerCase();
         if (mail.length() > 128 || !EMAIL_PATTERN.matcher(mail).matches()) {
-            throw new BadRequestException("Email is not valid: " + email);
+            throw new BadRequestException("error.auth.emailInvalid", email);
         }
         return mail;
     }
 
     private void validatePassword(String password) {
         if (password == null || password.length() < PASSWORD_MIN || password.length() > PASSWORD_MAX) {
-            throw new BadRequestException("Password must be " + PASSWORD_MIN + "-" + PASSWORD_MAX + " characters");
+            throw new BadRequestException("error.auth.passwordLength", PASSWORD_MIN, PASSWORD_MAX);
         }
     }
 }

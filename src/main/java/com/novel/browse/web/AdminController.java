@@ -70,11 +70,11 @@ public class AdminController {
 
     private void validateEpub(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BadRequestException("The uploaded file is empty");
+            throw new BadRequestException("error.upload.emptyFile");
         }
         String name = file.getOriginalFilename() == null ? "" : file.getOriginalFilename();
         if (!name.toLowerCase(Locale.ROOT).endsWith(".epub")) {
-            throw new BadRequestException("Only EPUB files (.epub) are supported: " + name);
+            throw new BadRequestException("error.upload.onlyEpub", name);
         }
     }
 }

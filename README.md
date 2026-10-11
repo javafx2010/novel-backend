@@ -11,6 +11,7 @@ Java / Spring Boot 编写的在线小说阅读网站后端。**前后端分离**
 | 数据库 | H2 内存数据库（启动时建表，不含任何种子数据）；停止时导出快照 `data/db-snapshot.sql`，下次启动加载回来（见「数据持久化」） |
 | 缓存 | RocksDB（`rocksdbjni`）本地嵌入式实现，自定义 `CacheManager` |
 | EPUB 解析 | jsoup + `java.util.zip` + JAXP 自研解析（zip → container.xml → OPF spine） |
+| 多语言 | Spring `MessageSource`，`Accept-Language` / `?lang=` 选语言，默认英语（en），附带中文（zh_CN） |
 | 运行时 | JDK 21 |
 
 ## 设计文档
@@ -26,6 +27,7 @@ src/main/java/com/novel/browse
 ├── config/WebConfig.java           跨域配置
 ├── data/EpubAutoLoader.java        启动扫描上传目录并导入 EPUB（分类按目录自动创建）
 ├── domain/                         Category / Novel / Chapter 实体
+├── i18n/                           多语言：MessageSource、语言解析器、Messages、消息码异常基类
 ├── repository/                     Spring Data JPA 仓储
 ├── service/                        业务服务（带 @Cacheable / @CacheEvict）
 └── web/
@@ -117,6 +119,41 @@ cp deploy.conf.example deploy.conf   # 可选：改端口 / JVM 参数 / 分支
 
 ```json
 { "timestamp": "2026-10-10T15:36:06.481Z", "status": 404, "error": "Not Found", "message": "小说不存在：id=9999", "path": "/novels/9999" }
+```
+
+`message` 的语言随请求变化（默认英语，见「多语言」）；`error` 恒为 HTTP 状态文本。
+
+## 多语言（i18n）
+
+接口返回的 `message` 按请求语言渲染，**默认英语**：
+
+| 语言来源 | 优先级 | 示例 |
+| --- | --- | --- |
+| `?lang=` 查询参数 | 最高 | `GET /novels/9999?lang=zh_CN` |
+| `Accept-Language` 请求头 | 次之 | `Accept-Language: zh-CN` |
+| `app.i18n.default-locale` | 兜底 | 未传、或语言不在白名单内时返回英文 |
+
+- 资源文件：`src/main/resources/i18n/messages.properties`（英语，同时作为兜底）、`messages_zh_CN.properties`（简体中文）
+- 白名单：`app.i18n.supported-locales`（默认 `en`、`zh_CN`），不在名单内的语言一律回退英语（不会退回 JVM 语言）
+- 响应头带 `Content-Language`（`en` / `zh-CN` 等），前端可据此确认实际使用的语言
+- 业务异常只抛消息码 + 参数（如 `error.novel.notFound` + id），由统一异常处理器按当前语言渲染：**新增语言只需加一个 properties 文件**
+- 签名校验失败提示、MCP 工具描述与工具报错同按请求语言返回
+
+```bash
+curl http://localhost:8080/novels/9999
+# {"message":"Novel not found: id=9999", ...}
+
+curl -H 'Accept-Language: zh-CN' http://localhost:8080/novels/9999
+# {"message":"小说不存在：id=9999", ...}
+```
+
+配置：
+
+```yaml
+app:
+  i18n:
+    default-locale: en
+    supported-locales: [ 'en', 'zh_CN' ]
 ```
 
 ## 后台管理：EPUB 上传

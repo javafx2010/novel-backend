@@ -42,7 +42,7 @@ public class NovelService {
 
     public Category getCategory(Long id) {
         return categoryRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Category not found: id=" + id));
+                .orElseThrow(() -> new NotFoundException("error.category.notFound", id));
     }
 
     /**
@@ -68,7 +68,7 @@ public class NovelService {
     @Cacheable(cacheNames = CacheNames.NOVEL_DETAIL, key = "#id")
     public Novel detail(Long id) {
         return novelRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Novel not found: id=" + id));
+                .orElseThrow(() -> new NotFoundException("error.novel.notFound", id));
     }
 
     @Transactional

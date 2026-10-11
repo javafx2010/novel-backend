@@ -39,13 +39,13 @@ public class ChapterService {
     @Cacheable(cacheNames = CacheNames.CHAPTER_NO, key = "#novelId + ':' + #chapterNo")
     public Chapter getByNo(Long novelId, Integer chapterNo) {
         return chapterRepository.findByNovelIdAndChapterNo(novelId, chapterNo)
-                .orElseThrow(() -> new NotFoundException("Chapter not found: no=" + chapterNo));
+                .orElseThrow(() -> new NotFoundException("error.chapter.notFoundNo", chapterNo));
     }
 
     @Cacheable(cacheNames = CacheNames.CHAPTER, key = "#id")
     public Chapter getById(Long id) {
         return chapterRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Chapter not found: id=" + id));
+                .orElseThrow(() -> new NotFoundException("error.chapter.notFoundId", id));
     }
 
     public Optional<Chapter> previous(Long novelId, Integer chapterNo) {

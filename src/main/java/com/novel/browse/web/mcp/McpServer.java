@@ -1,6 +1,7 @@
 package com.novel.browse.web.mcp;
 
 import com.novel.browse.config.McpProperties;
+import com.novel.browse.i18n.Messages;
 import com.novel.browse.domain.Category;
 import com.novel.browse.domain.Novel;
 import com.novel.browse.service.AdminService;
@@ -44,30 +45,27 @@ public class McpServer {
     private final AdminService adminService;
     private final NovelService novelService;
     private final McpProperties properties;
+    private final Messages messages;
     private final ObjectMapper mapper = new ObjectMapper();
     private final Map<String, McpTool> tools = new LinkedHashMap<>();
 
     public McpServer(AdminService adminService,
                      NovelService novelService,
-                     McpProperties properties) {
+                     McpProperties properties,
+                     Messages messages) {
         this.adminService = adminService;
         this.novelService = novelService;
         this.properties = properties;
+        this.messages = messages;
 
-        register(new McpTool("upload_epub",
-                "Import an EPUB book: parses chapters, extracts the cover and creates the novel. "
-                        + "Pass the raw file as base64. Duplicate content (same SHA-256) is rejected.",
-                uploadSchema(), this::uploadEpub));
-        register(new McpTool("update_novel",
-                "Update the metadata of an existing novel (title, author, description, status, tags, category). "
-                        + "Only the provided fields are changed.",
-                updateSchema(), this::updateNovel));
-        register(new McpTool("list_categories",
-                "List all categories with their ids; call this before upload_epub when the category id is unknown.",
-                emptySchema(), this::listCategories));
-        register(new McpTool("list_novels",
-                "List novels (newest update first) with their ids; call this before update_novel when the id is unknown.",
-                listNovelsSchema(), this::listNovels));
+        register(new McpTool("upload_epub", "mcp.tool.upload.description",
+                this::uploadSchema, this::uploadEpub));
+        register(new McpTool("update_novel", "mcp.tool.update.description",
+                this::updateSchema, this::updateNovel));
+        register(new McpTool("list_categories", "mcp.tool.listCategories.description",
+                this::emptySchema, this::listCategories));
+        register(new McpTool("list_novels", "mcp.tool.listNovels.description",
+                this::listNovelsSchema, this::listNovels));
     }
 
     /** Tools exposed by {@code tools/list} */
@@ -86,10 +84,10 @@ public class McpServer {
         try {
             request = mapper.readTree(body == null ? "" : body);
         } catch (Exception e) {
-            return error(null, -32700, "Parse error: " + e.getMessage());
+            return error(null, -32700, messages.get("error.mcp.parseError", e.getMessage()));
         }
         if (request == null || !request.isObject()) {
-            return error(null, -32700, "Parse error: the request body must be a JSON object");
+            return error(null, -32700, messages.get("error.mcp.parseErrorNotObject"));
         }
         JsonNode id = request.get("id");
         String method = request.path("method").asString("");
@@ -122,10 +120,10 @@ public class McpServer {
                 empty.putArray("prompts");
                 return result(id, empty);
             }
-            return error(id, -32601, "Method not found: " + method);
+            return error(id, -32601, messages.get("error.mcp.methodNotFound", method));
         } catch (Exception e) {
             log.warn("MCP {} failed: {}", method, e.getMessage());
-            return error(id, -32603, "Internal error: " + e.getMessage());
+            return error(id, -32603, messages.get("error.mcp.internalError", e.getMessage()));
         }
     }
 
@@ -144,8 +142,7 @@ public class McpServer {
         ObjectNode serverInfo = result.putObject("serverInfo");
         serverInfo.put("name", properties.getServerName());
         serverInfo.put("version", properties.getServerVersion());
-        result.put("instructions", "Novel browsing service. Use list_categories / list_novels to look up ids, "
-                + "then upload_epub to import an EPUB (base64) or update_novel to edit a book's metadata.");
+        result.put("instructions", messages.get("mcp.instructions"));
         return result;
     }
 
@@ -154,8 +151,8 @@ public class McpServer {
         for (McpTool tool : tools.values()) {
             ObjectNode item = array.addObject();
             item.put("name", tool.name());
-            item.put("description", tool.description());
-            item.set("inputSchema", tool.inputSchema());
+            item.put("description", messages.get(tool.descriptionCode()));
+            item.set("inputSchema", tool.inputSchema().build(messages));
         }
         ObjectNode result = mapper.createObjectNode();
         result.set("tools", array);
@@ -166,7 +163,7 @@ public class McpServer {
         String name = params == null ? "" : params.path("name").asString("");
         McpTool tool = tools.get(name);
         if (tool == null) {
-            return toolError("Unknown tool: " + name + ", available: " + String.join(", ", tools.keySet()));
+            return toolError(messages.get("error.mcp.unknownTool", name, String.join(", ", tools.keySet())));
         }
         JsonNode arguments = params == null ? null : params.get("arguments");
         if (arguments == null || arguments.isNull() || !arguments.isObject()) {
@@ -177,10 +174,10 @@ public class McpServer {
             log.info("MCP tool called: {}", name);
             return toolResult(payload.toString(), payload, false);
         } catch (BadRequestException | NotFoundException e) {
-            return toolResult(e.getMessage(), null, true);
+            return toolResult(messages.of(e), null, true);
         } catch (Exception e) {
             log.warn("MCP tool {} failed: {}", name, e.getMessage());
-            return toolResult("Tool " + name + " failed: " + e.getMessage(), null, true);
+            return toolResult(messages.get("error.mcp.toolFailed", name, e.getMessage()), null, true);
         }
     }
 
@@ -243,22 +240,22 @@ public class McpServer {
         String fileName = text(args, "fileName");
         String base64 = text(args, "contentBase64");
         if (fileName == null || fileName.isBlank()) {
-            throw new BadRequestException("fileName is required");
+            throw new BadRequestException("error.mcp.fileNameRequired");
         }
         if (!fileName.toLowerCase(Locale.ROOT).endsWith(".epub")) {
-            throw new BadRequestException("Only EPUB files (.epub) are supported: " + fileName);
+            throw new BadRequestException("error.upload.onlyEpub", fileName);
         }
         if (base64 == null || base64.isBlank()) {
-            throw new BadRequestException("contentBase64 is required (base64 encoded EPUB content)");
+            throw new BadRequestException("error.mcp.contentRequired");
         }
         byte[] data;
         try {
             data = Base64.getDecoder().decode(base64.trim());
         } catch (IllegalArgumentException e) {
-            throw new BadRequestException("contentBase64 is not valid base64: " + e.getMessage());
+            throw new BadRequestException("error.mcp.invalidBase64", e.getMessage());
         }
         if (data.length == 0) {
-            throw new BadRequestException("The decoded EPUB content is empty");
+            throw new BadRequestException("error.mcp.emptyContent");
         }
         Long categoryId = args.hasNonNull("categoryId") ? args.get("categoryId").asLong() : null;
         Novel novel = adminService.upload(data, fileName, categoryId, text(args, "categoryName"),
@@ -269,7 +266,7 @@ public class McpServer {
     private ObjectNode updateNovel(JsonNode args) {
         long id = args.path("id").asLong(-1L);
         if (id <= 0) {
-            throw new BadRequestException("id is required (use list_novels to find it)");
+            throw new BadRequestException("error.mcp.idRequired");
         }
         Long categoryId = args.hasNonNull("categoryId") ? args.get("categoryId").asLong() : null;
         Novel novel = adminService.updateNovel(id, text(args, "title"), text(args, "author"),
@@ -324,40 +321,39 @@ public class McpServer {
         return value.isBlank() ? null : value.trim();
     }
 
-    private ObjectNode emptySchema() {
+    private ObjectNode emptySchema(Messages messages) {
         ObjectNode schema = mapper.createObjectNode();
         schema.put("type", "object");
         schema.putObject("properties");
         return schema;
     }
 
-    private ObjectNode uploadSchema() {
+    private ObjectNode uploadSchema(Messages messages) {
         ObjectNode properties = mapper.createObjectNode();
-        properties.set("fileName", stringProperty("Original file name, must end with .epub"));
-        properties.set("contentBase64", stringProperty("Base64 encoded content of the EPUB file"));
-        properties.set("categoryId", integerProperty("Target category id; omit to use categoryName"));
-        properties.set("categoryName", stringProperty("Target category name, created when it does not exist yet"
-                + " (defaults to app.upload.default-category-name)"));
-        properties.set("status", stringProperty("Serialization status: ONGOING or FINISHED, default ONGOING"));
-        properties.set("tags", stringProperty("Comma separated tags; defaults to the EPUB dc:subject"));
+        properties.set("fileName", stringProperty(messages, "mcp.schema.upload.fileName"));
+        properties.set("contentBase64", stringProperty(messages, "mcp.schema.upload.contentBase64"));
+        properties.set("categoryId", integerProperty(messages, "mcp.schema.upload.categoryId"));
+        properties.set("categoryName", stringProperty(messages, "mcp.schema.upload.categoryName"));
+        properties.set("status", stringProperty(messages, "mcp.schema.upload.status"));
+        properties.set("tags", stringProperty(messages, "mcp.schema.upload.tags"));
         return schema(properties, List.of("fileName", "contentBase64"));
     }
 
-    private ObjectNode updateSchema() {
+    private ObjectNode updateSchema(Messages messages) {
         ObjectNode properties = mapper.createObjectNode();
-        properties.set("id", integerProperty("Novel id to update (use list_novels to find it)"));
-        properties.set("title", stringProperty("New title"));
-        properties.set("author", stringProperty("New author"));
-        properties.set("description", stringProperty("New description"));
-        properties.set("status", stringProperty("New status: ONGOING or FINISHED"));
-        properties.set("tags", stringProperty("New tags, comma separated"));
-        properties.set("categoryId", integerProperty("Move the novel to this category id (must already exist)"));
+        properties.set("id", integerProperty(messages, "mcp.schema.update.id"));
+        properties.set("title", stringProperty(messages, "mcp.schema.update.title"));
+        properties.set("author", stringProperty(messages, "mcp.schema.update.author"));
+        properties.set("description", stringProperty(messages, "mcp.schema.update.description"));
+        properties.set("status", stringProperty(messages, "mcp.schema.update.status"));
+        properties.set("tags", stringProperty(messages, "mcp.schema.update.tags"));
+        properties.set("categoryId", integerProperty(messages, "mcp.schema.update.categoryId"));
         return schema(properties, List.of("id"));
     }
 
-    private ObjectNode listNovelsSchema() {
+    private ObjectNode listNovelsSchema(Messages messages) {
         ObjectNode properties = mapper.createObjectNode();
-        properties.set("limit", integerProperty("Maximum number of novels to return, 1-100, default 20"));
+        properties.set("limit", integerProperty(messages, "mcp.schema.listNovels.limit"));
         return schema(properties, List.of());
     }
 
@@ -372,23 +368,32 @@ public class McpServer {
         return schema;
     }
 
-    private ObjectNode stringProperty(String description) {
+    private ObjectNode stringProperty(Messages messages, String descriptionCode) {
         ObjectNode node = mapper.createObjectNode();
         node.put("type", "string");
-        node.put("description", description);
+        node.put("description", messages.get(descriptionCode));
         return node;
     }
 
-    private ObjectNode integerProperty(String description) {
+    private ObjectNode integerProperty(Messages messages, String descriptionCode) {
         ObjectNode node = mapper.createObjectNode();
         node.put("type", "integer");
-        node.put("description", description);
+        node.put("description", messages.get(descriptionCode));
         return node;
     }
 
-    /** One exposed MCP tool: name, description, JSON schema of the arguments and the handler */
-    public record McpTool(String name, String description, ObjectNode inputSchema, ToolHandler handler) {
+    /**
+     * One exposed MCP tool: name, description code (resolved per request locale), schema builder
+     * (also locale aware) and the handler
+     */
+    public record McpTool(String name, String descriptionCode, SchemaFactory inputSchema, ToolHandler handler) {
 
+    }
+
+    /** Builds the JSON schema of a tool's arguments in the requested language */
+    public interface SchemaFactory {
+
+        ObjectNode build(Messages messages);
     }
 
     /** Executes a tool and returns its structured result */

@@ -1,6 +1,7 @@
 package com.novel.browse.web;
 
 import com.novel.browse.domain.User;
+import com.novel.browse.service.BadRequestException;
 import com.novel.browse.service.NotFoundException;
 import com.novel.browse.service.ReviewService;
 import com.novel.browse.web.dto.PageResult;
@@ -38,7 +39,7 @@ public class ReviewController {
     public ReviewVo mine(@CurrentUser User user, @PathVariable Long novelId) {
         ReviewVo review = reviewService.getMine(user, novelId);
         if (review == null) {
-            throw new NotFoundException("No review for novel: " + novelId);
+            throw new NotFoundException("error.review.notFound", novelId);
         }
         return review;
     }
@@ -46,7 +47,7 @@ public class ReviewController {
     @PutMapping("/me/reviews/{novelId}")
     public ReviewVo save(@CurrentUser User user, @PathVariable Long novelId, @RequestBody ReviewRequest body) {
         if (body == null || body.rating() == null) {
-            throw new IllegalArgumentException("rating is required");
+            throw new BadRequestException("error.review.ratingRequired");
         }
         return reviewService.save(user, novelId, body.rating(), body.content());
     }

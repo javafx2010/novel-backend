@@ -2,12 +2,18 @@ package com.novel.browse.web.mcp;
 
 import com.novel.browse.config.McpProperties;
 import com.novel.browse.domain.Novel;
+import com.novel.browse.i18n.I18nSettings;
+import com.novel.browse.i18n.Messages;
 import com.novel.browse.service.AdminService;
 import com.novel.browse.service.NovelService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.support.ResourceBundleMessageSource;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+
+import java.util.List;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -30,11 +36,20 @@ class McpServerTest {
     private NovelService novelService;
     private McpServer server;
 
+    /** Real bundles, English locale: the same messages the server returns for a request without Accept-Language */
+    private static Messages englishMessages() {
+        ResourceBundleMessageSource source = new ResourceBundleMessageSource();
+        source.setBasename("i18n/messages");
+        source.setDefaultEncoding("UTF-8");
+        source.setFallbackToSystemLocale(false);
+        return new Messages(source, new I18nSettings(Locale.ENGLISH, List.of(Locale.ENGLISH, Locale.SIMPLIFIED_CHINESE)));
+    }
+
     @BeforeEach
     void setUp() {
         adminService = mock(AdminService.class);
         novelService = mock(NovelService.class);
-        server = new McpServer(adminService, novelService, new McpProperties());
+        server = new McpServer(adminService, novelService, new McpProperties(), englishMessages());
     }
 
     @Test

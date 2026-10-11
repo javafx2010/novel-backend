@@ -26,7 +26,7 @@ public class AdminTokenInterceptor implements HandlerInterceptor {
         }
         String provided = request.getHeader(HEADER);
         if (provided == null || !token.equals(provided.trim())) {
-            throw new UnauthorizedException("Missing or invalid " + HEADER);
+            throw new UnauthorizedException("error.admin.tokenMissing", HEADER);
         }
         return true;
     }

@@ -102,7 +102,7 @@ public class AdminService {
                         String status, String tags) {
         String hash = epubStorage.sha256(data);
         if (novelRepository.existsBySourceHash(hash)) {
-            throw new BadRequestException("This EPUB was already imported (content hash " + hash.substring(0, 8) + ")");
+            throw new BadRequestException("error.epub.alreadyImported", hash.substring(0, 8));
         }
         Category category = resolveCategory(categoryId, categoryName);
 
@@ -175,7 +175,7 @@ public class AdminService {
     })
     public void deleteNovel(Long id) {
         Novel novel = novelRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Novel not found: id=" + id));
+                .orElseThrow(() -> new NotFoundException("error.novel.notFound", id));
         int removed = chapterRepository.deleteByNovelId(id);
         novelRepository.delete(novel);
         String sourceFile = novel.getSourceFile();
@@ -191,7 +191,7 @@ public class AdminService {
     private Category resolveCategory(Long categoryId, String categoryName) {
         if (categoryId != null) {
             return categoryRepository.findById(categoryId)
-                    .orElseThrow(() -> new NotFoundException("Category not found: id=" + categoryId));
+                    .orElseThrow(() -> new NotFoundException("error.category.notFound", categoryId));
         }
         String name = categoryName == null || categoryName.isBlank() ? defaultCategoryName : categoryName.trim();
         return novelService.findOrCreateCategory(name);
@@ -217,7 +217,7 @@ public class AdminService {
     public Novel updateNovel(Long id, String title, String author, String description,
                              String status, String tags, Long categoryId) {
         Novel novel = novelRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Novel not found: id=" + id));
+                .orElseThrow(() -> new NotFoundException("error.novel.notFound", id));
         if (title != null && !title.isBlank()) {
             novel.setTitle(TextUtil.truncate(title.trim(), 128));
         }
