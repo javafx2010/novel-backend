@@ -61,6 +61,12 @@ app:
     # 鉴权令牌：请求头 Authorization: Bearer <token> 或 X-Mcp-Token
     # 留空时回退到 app.admin.token；两者都为空则不校验（会打印警告）
     token: ''
+  db:
+    snapshot:
+      # 内存库快照：进程停止时把整库导出到文件，下次启动再加载回来（仅 H2 生效，其他数据库自带持久化）
+      # 只有优雅停止（SIGTERM，脚本 stop/restart 走的就是它）才会导出；kill -9 不会
+      enabled: true
+      file: './data/db-snapshot.sql'
   cover:
     # 从 EPUB 提取的封面图保存目录（部署脚本会传 $APP_ROOT/data/covers），经 /covers/** 访问
     dir: './data/covers'

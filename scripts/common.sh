@@ -85,6 +85,7 @@ init_paths() {
     CACHE_DIR="$DATA_DIR/rocksdb-cache"
     UPLOAD_DIR="$DATA_DIR/epub"
     COVER_DIR="$DATA_DIR/covers"
+    SNAPSHOT_FILE="$DATA_DIR/db-snapshot.sql"
     ENV_FILE="$APP_ROOT/app.env"
 }
 
@@ -364,6 +365,7 @@ render_template() {
         -e "s|@@CACHE_DIR@@|$CACHE_DIR|g" \
         -e "s|@@UPLOAD_DIR@@|$UPLOAD_DIR|g" \
         -e "s|@@COVER_DIR@@|$COVER_DIR|g" \
+        -e "s|@@SNAPSHOT_FILE@@|$SNAPSHOT_FILE|g" \
         -e "s|@@LOG_DIR@@|$LOG_DIR|g" \
         -e "s|@@LOG_FILE@@|$LOG_FILE|g" \
         -e "s|@@PORT@@|$PORT|g" \
@@ -373,7 +375,7 @@ render_template() {
 
 app_args() {
     local args
-    args="--server.port=$PORT --rocksdb.cache.path=$CACHE_DIR --app.upload.dir=$UPLOAD_DIR --app.cover.dir=$COVER_DIR"
+    args="--server.port=$PORT --rocksdb.cache.path=$CACHE_DIR --app.upload.dir=$UPLOAD_DIR --app.cover.dir=$COVER_DIR --app.db.snapshot.file=$SNAPSHOT_FILE"
     [ -n "$SPRING_PROFILES_ACTIVE" ] && args="$args --spring.profiles.active=$SPRING_PROFILES_ACTIVE"
     [ -n "$EXTRA_ARGS" ] && args="$args $EXTRA_ARGS"
     printf '%s' "$args"

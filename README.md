@@ -8,7 +8,7 @@ Java / Spring Boot 编写的在线小说阅读网站后端。**前后端分离**
 | --- | --- |
 | 构建工具 | Gradle 9.6.0（Wrapper，发行包走腾讯云镜像） |
 | 框架 | Spring Boot 4.1.1（Web / Data JPA / Cache） |
-| 数据库 | H2 内存数据库（启动时建表，不含任何种子数据，进程退出即释放） |
+| 数据库 | H2 内存数据库（启动时建表，不含任何种子数据）；停止时导出快照 `data/db-snapshot.sql`，下次启动加载回来（见「数据持久化」） |
 | 缓存 | RocksDB（`rocksdbjni`）本地嵌入式实现，自定义 `CacheManager` |
 | EPUB 解析 | jsoup + `java.util.zip` + JAXP 自研解析（zip → container.xml → OPF spine） |
 | 运行时 | JDK 21 |
@@ -176,6 +176,21 @@ curl -X DELETE http://localhost:8080/admin/novels/9
 mkdir -p ~/apps/novel-browse/data/epub/武侠修真
 cp ~/books/*.epub ~/apps/novel-browse/data/epub/武侠修真/
 ```
+
+## 数据持久化（内存库快照）
+
+数据库是 H2 内存库，数据本身不落盘，靠快照跨重启保留：
+
+| 时机 | 动作 |
+| --- | --- |
+| 停止（`SIGTERM`，脚本 `stop` / `restart` / 发版滚动重启都是它） | `SCRIPT TO` 把整库导出到 `app.db.snapshot.file`（默认 `./data/db-snapshot.sql`，部署时 `$APP_ROOT/data/db-snapshot.sql`），先写 `.tmp` 再原子替换 |
+| 启动 | `DROP ALL OBJECTS` + `RUNSCRIPT FROM` 加载快照；文件不存在就按空库启动 |
+
+- 快照**先于 Hibernate 建表**加载（`DbSnapshotOrder` 让 `EntityManagerFactory` 依赖 `DbSnapshot`），所以升级新增的列/表会被 `ddl-auto=update` 自动补上
+- 只有优雅停止才导出：`kill -9`、断电不会写快照（下次按空库启动，EPUB 仍在 `data/epub/`，会被启动扫描重新导入）
+- 换 MySQL / PostgreSQL 等非 H2 数据库时自动跳过（打印警告，数据由数据库自己持久化）
+- 关闭：`app.db.snapshot.enabled=false`
+- 目录里已有 EPUB 仍会按内容哈希去重，快照恢复后不会重复导入
 
 ## 书籍封面
 

@@ -25,6 +25,7 @@
 ├── data/rocksdb-cache/              # RocksDB 缓存目录
 ├── data/epub/                       # 上传的 EPUB 原文件：子目录名 = 分类名，启动时双向同步并自动导入
 ├── data/covers/                     # 从 EPUB 提取的封面图（站点无内置书目数据，封面均来自导入）
+├── data/db-snapshot.sql             # 内存库快照：停止时导出，启动时加载（优雅停止才有；kill -9 会丢）
 └── app.env                          # systemd 模式下的运行参数
 ```
 
@@ -140,7 +141,8 @@ deploy.sh
 
 - **构建与运存分离**：Gradle 构建需要额外内存，服务器内存紧张时可将 `GRADLE_EXTRA_ARGS` 中的 `-x test` 保留，并适当调小 `JAVA_OPTS`。
 - **数据目录**：`data/` 与发布版本目录解耦，不会因发版丢失。`--rocksdb.cache.path=$APP_ROOT/data/rocksdb-cache`（缓存）、`--app.upload.dir=$APP_ROOT/data/epub`（上传的 EPUB 原文件，启动时扫描自动导入）。
-- **RocksDB 目录**：启动参数显式传入 `--rocksdb.cache.path=$APP_ROOT/data/rocksdb-cache`，与源码目录解耦。因内存库每次重启都会重新生成数据，默认 `clean-on-start=true`，重启后缓存自动清空；如需保留可设置 `EXTRA_ARGS="--rocksdb.cache.clean-on-start=false"`。
+- **RocksDB 目录**：启动参数显式传入 `--rocksdb.cache.path=$APP_ROOT/data/rocksdb-cache`，与源码目录解耦。数据源自快照恢复后基本一致，默认仍为 `clean-on-start=true`（重启清空缓存，避免数据库与缓存不一致）；如需保留可设置 `EXTRA_ARGS="--rocksdb.cache.clean-on-start=false"`。
+- **数据库快照**：启动参数 `--app.db.snapshot.file=$APP_ROOT/data/db-snapshot.sql`。停止走 `SIGTERM`（脚本 `stop`/`restart`/发版），进程会先导出整库再退出；`kill -9` 不会导出，下次按空库启动（EPUB 原文件仍在 `data/epub/`，会被启动扫描重新导入，但点击数、手工改动会丢）。
 - **端口占用**：启动前会检测端口，被非本脚本管理的进程占用时直接报错退出（不触发回滚，避免误伤在跑的服务），可用 `sudo ss -ltnp | grep :8080` 排查。
 - **接口签名**：应用开启签名（`app.signature.secret`）后，脚本的健康检查会自动带签名头，只需在 `deploy.conf`（或 `app.env`）里配置 `APP_SIGNATURE_KEY` 与 `APP_SIGNATURE_SECRET`；也可以反过来把健康检查路径写进 `app.signature.exclude-paths` 免签。签名算法：`HMAC-SHA256(secret, "METHOD \n uri \n timestamp \n nonce \n bodySha256")`。
 - **systemd 模式**：`ExecStart` 中的 `${JAVA_OPTS}` 来自 `app.env`，修改 `JAVA_OPTS` 后需重新执行 `install-service.sh`（或直接编辑 `app.env` 后 `sudo systemctl restart novel-browse`）。
