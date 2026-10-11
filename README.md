@@ -124,7 +124,7 @@ cp deploy.conf.example deploy.conf   # 可选：改端口 / JVM 参数 / 分支
 上传 EPUB 后自动解析并入库，无需手工录入章节：
 
 - **分类 ↔ 磁盘子目录一一对应**：上传时按分类名建子目录，原文件落到 `app.upload.dir/<分类名>/<内容哈希前8位>-<原名>.epub`（默认 `./data/epub`，部署时为 `$APP_ROOT/data/epub`）
-- 按内容 SHA-256 去重：同一文件重复上传返回 400；**服务启动时扫描该目录**，未导入的 EPUB 自动入库（已导入的跳过）
+- 去重与覆盖：同一文件（内容 SHA-256 相同）重复上传返回 400；**书名 + 作者相同的书再次导入则覆盖原条目**（章节、简介、封面替换，保留 id 与点击数，删除上一版的文件）；**服务启动时扫描该目录**，未导入的 EPUB 自动入库（已导入的跳过）
 - 启动时同步双向映射：子目录名 → 自动创建同名分类（sortNo=999 排最后）；已有分类 → 补齐缺失的子目录。直接放在根目录的 EPUB 归入 `app.upload.default-category-name`（默认 `Imported`）
 - 解析：读取 zip → `META-INF/container.xml` 定位 OPF → 按 `spine` 顺序抽取正文章节
 - 元数据取自 OPF：`dc:title`、`dc:creator`、`dc:description`、`dc:subject`（作为标签）

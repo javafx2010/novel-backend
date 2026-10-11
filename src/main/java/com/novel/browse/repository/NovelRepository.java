@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface NovelRepository extends JpaRepository<Novel, Long> {
 
@@ -35,4 +36,10 @@ public interface NovelRepository extends JpaRepository<Novel, Long> {
 
     /** Whether this EPUB (by content hash) was already imported, used to deduplicate uploads and startup scans */
     boolean existsBySourceHash(String sourceHash);
+
+    /**
+     * Finds a book with the same title and author (case-insensitive).
+     * The content hash is not enough: the same book re-generated with different bytes has a different hash.
+     */
+    Optional<Novel> findFirstByTitleIgnoreCaseAndAuthorIgnoreCase(String title, String author);
 }

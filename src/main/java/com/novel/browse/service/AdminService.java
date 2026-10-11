@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Admin: EPUB upload (source file stored on disk), startup directory scan import, novel deletion and listing.
@@ -79,6 +80,8 @@ public class AdminService {
 
     /**
      * Uploads an EPUB: store on disk, then parse, then persist.
+     * <p>
+     * A book already in the library (same title and author) is overwritten instead of duplicated.
      *
      * @param data         raw EPUB content
      * @param fileName     original file name
@@ -88,7 +91,13 @@ public class AdminService {
      * @param tags         tags (falls back to the EPUB dc:subject when blank)
      */
     @Transactional
-    @CacheEvict(cacheNames = CacheNames.HOME_LIST, allEntries = true)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.HOME_LIST, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.NOVEL_DETAIL, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.CHAPTER_LIST, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.CHAPTER, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.CHAPTER_NO, allEntries = true)
+    })
     public Novel upload(byte[] data, String fileName, Long categoryId, String categoryName,
                         String status, String tags) {
         String hash = epubStorage.sha256(data);
@@ -101,8 +110,13 @@ public class AdminService {
         String savedPath = epubStorage.save(data, fileName, category.getName());
         try {
             Novel novel = createNovel(data, fileName, category, status, tags, hash);
+            String previousFile = novel.getSourceFile();
             novel.setSourceFile(savedPath);
             novel.setSourceHash(hash);
+            // Overwrite: the previously stored copy of the same book is replaced
+            if (previousFile != null && !previousFile.isBlank() && !previousFile.equals(savedPath)) {
+                epubStorage.delete(previousFile);
+            }
             return novelRepository.save(novel);
         } catch (RuntimeException e) {
             // On parse or persistence failure remove the stored file so the next startup scan does not import it again
@@ -112,14 +126,20 @@ public class AdminService {
     }
 
     /**
-     * Imports an EPUB file from disk (used by the startup scan, no deduplication here).
+     * Imports an EPUB file from disk (used by the startup scan; a book already in the library is overwritten).
      *
      * @param file     EPUB file
      * @param hash     content hash computed by the caller, stored in source_hash
      * @param category owning category
      */
     @Transactional
-    @CacheEvict(cacheNames = CacheNames.HOME_LIST, allEntries = true)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.HOME_LIST, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.NOVEL_DETAIL, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.CHAPTER_LIST, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.CHAPTER, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.CHAPTER_NO, allEntries = true)
+    })
     public Novel importFile(Path file, String hash, Category category, String status) {
         byte[] data;
         try {
@@ -128,8 +148,13 @@ public class AdminService {
             throw new UncheckedIOException("Failed to read the EPUB: " + file, e);
         }
         Novel novel = createNovel(data, file.getFileName().toString(), category, status, null, hash);
+        String previousFile = novel.getSourceFile();
         novel.setSourceFile(epubStorage.relative(file));
         novel.setSourceHash(hash);
+        // Overwrite: the previously stored copy of the same book is replaced
+        if (previousFile != null && !previousFile.isBlank() && !previousFile.equals(novel.getSourceFile())) {
+            epubStorage.delete(previousFile);
+        }
         return novelRepository.save(novel);
     }
 
@@ -229,9 +254,16 @@ public class AdminService {
         EpubBook book = epubParser.parse(data, fileName);
 
         String title = defaultIfBlank(book.title(), defaultTitle(fileName));
-        Novel novel = new Novel();
+        String author = TextUtil.truncate(defaultIfBlank(book.author(), "Unknown"), 64);
+        // Re-importing the same book (same title and author) overwrites the existing entry instead of adding a copy:
+        // the content hash is not enough, the same book re-generated with different bytes has a different hash
+        Optional<Novel> existing = novelRepository.findFirstByTitleIgnoreCaseAndAuthorIgnoreCase(title, author);
+        boolean overwrite = existing.isPresent();
+        Novel novel = existing.orElseGet(Novel::new);
+        String previousCover = overwrite ? novel.getCoverImage() : null;
+
         novel.setTitle(TextUtil.truncate(title, 128));
-        novel.setAuthor(TextUtil.truncate(defaultIfBlank(book.author(), "Unknown"), 64));
+        novel.setAuthor(author);
         novel.setCategory(category);
         novel.setCoverColor(COVER_COLORS[Math.abs(title.hashCode()) % COVER_COLORS.length]);
         novel.setCoverMark(coverMark(title));
@@ -241,8 +273,10 @@ public class AdminService {
         novel.setDescription(TextUtil.truncate(book.description(), 2000));
         novel.setTags(TextUtil.truncate(tags != null && !tags.isBlank() ? tags : String.join(",", book.subjects()), 128));
         novel.setStatus(Novel.STATUS_FINISHED.equalsIgnoreCase(status) ? Novel.STATUS_FINISHED : Novel.STATUS_ONGOING);
-        novel.setViewCount(0L);
-        novel.setRating(0.0);
+        if (!overwrite) {
+            novel.setViewCount(0L);
+            novel.setRating(0.0);
+        }
         novel.setChapterCount(0);
         novel.setWordCount(0L);
 
@@ -265,12 +299,24 @@ public class AdminService {
         }
         novel.setChapterCount(chapters.size());
         novel.setWordCount(words);
-        novel.setCreatedAt(now);
+        if (!overwrite) {
+            novel.setCreatedAt(now);
+        }
         novel.setUpdatedAt(now);
 
         Novel saved = novelRepository.save(novel);
+        if (overwrite) {
+            chapterRepository.deleteByNovelId(saved.getId());
+            // flush before the new chapters are persisted: Hibernate would otherwise run the inserts first
+            // and hit uk_chapter_novel_no
+            chapterRepository.flush();
+        }
         chapterRepository.saveAll(chapters);
-        log.info("EPUB imported: id={} title={} chapters={} words={}", saved.getId(), saved.getTitle(), chapters.size(), words);
+        if (overwrite && previousCover != null && !previousCover.equals(novel.getCoverImage())) {
+            coverStorage.delete(previousCover);
+        }
+        log.info("EPUB {}: id={} title={} chapters={} words={}", overwrite ? "updated" : "imported",
+                saved.getId(), saved.getTitle(), chapters.size(), words);
         return saved;
     }
 
