@@ -373,11 +373,28 @@ render_template() {
         "$tpl" > "$out" || die "渲染模板失败：$tpl"
 }
 
+# app_args 已经设置了这些参数：EXTRA_ARGS 里再写一遍，Spring 会把同名参数合并成
+# 逗号分隔值（如 A,B），目录类参数会被拼成一个不存在的路径，导致启动后书目为空
+check_extra_args_overlap() {
+    local builtin_args="--server.port --rocksdb.cache.path --app.upload.dir --app.cover.dir --app.db.snapshot.file --spring.profiles.active"
+    local item
+    for item in $builtin_args; do
+        case " $EXTRA_ARGS " in
+            *" $item"*)
+                die "EXTRA_ARGS 重复设置了 $item , Spring 会把同名参数合并成逗号分隔值（目录类参数会被拼坏，导致书目为空），请从 EXTRA_ARGS 中移除（app_args 已内置该参数）"
+                ;;
+        esac
+    done
+}
+
 app_args() {
     local args
     args="--server.port=$PORT --rocksdb.cache.path=$CACHE_DIR --app.upload.dir=$UPLOAD_DIR --app.cover.dir=$COVER_DIR --app.db.snapshot.file=$SNAPSHOT_FILE"
     [ -n "$SPRING_PROFILES_ACTIVE" ] && args="$args --spring.profiles.active=$SPRING_PROFILES_ACTIVE"
-    [ -n "$EXTRA_ARGS" ] && args="$args $EXTRA_ARGS"
+    if [ -n "$EXTRA_ARGS" ]; then
+        check_extra_args_overlap
+        args="$args $EXTRA_ARGS"
+    fi
     printf '%s' "$args"
 }
 
