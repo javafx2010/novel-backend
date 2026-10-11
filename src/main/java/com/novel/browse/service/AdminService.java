@@ -14,6 +14,7 @@ import com.novel.browse.service.epub.EpubStorage;
 import com.novel.browse.service.epub.TextUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Sort;
@@ -52,42 +53,49 @@ public class AdminService {
     private final EpubParser epubParser;
     private final EpubStorage epubStorage;
     private final CoverStorage coverStorage;
+    private final NovelService novelService;
     private final NovelRepository novelRepository;
     private final ChapterRepository chapterRepository;
     private final CategoryRepository categoryRepository;
+    private final String defaultCategoryName;
 
     public AdminService(EpubParser epubParser,
                         EpubStorage epubStorage,
                         CoverStorage coverStorage,
+                        NovelService novelService,
                         NovelRepository novelRepository,
                         ChapterRepository chapterRepository,
-                        CategoryRepository categoryRepository) {
+                        CategoryRepository categoryRepository,
+                        @Value("${app.upload.default-category-name:Imported}") String defaultCategoryName) {
         this.epubParser = epubParser;
         this.epubStorage = epubStorage;
         this.coverStorage = coverStorage;
+        this.novelService = novelService;
         this.novelRepository = novelRepository;
         this.chapterRepository = chapterRepository;
         this.categoryRepository = categoryRepository;
+        this.defaultCategoryName = defaultCategoryName;
     }
 
     /**
      * Uploads an EPUB: store on disk, then parse, then persist.
      *
-     * @param data       raw EPUB content
-     * @param fileName   original file name
-     * @param categoryId category id
-     * @param status     serialization status (ONGOING when blank)
-     * @param tags       tags (falls back to the EPUB dc:subject when blank)
+     * @param data         raw EPUB content
+     * @param fileName     original file name
+     * @param categoryId   category id, takes precedence when present
+     * @param categoryName category name, created when it does not exist yet
+     * @param status       serialization status (ONGOING when blank)
+     * @param tags         tags (falls back to the EPUB dc:subject when blank)
      */
     @Transactional
     @CacheEvict(cacheNames = CacheNames.HOME_LIST, allEntries = true)
-    public Novel upload(byte[] data, String fileName, Long categoryId, String status, String tags) {
+    public Novel upload(byte[] data, String fileName, Long categoryId, String categoryName,
+                        String status, String tags) {
         String hash = epubStorage.sha256(data);
         if (novelRepository.existsBySourceHash(hash)) {
             throw new BadRequestException("This EPUB was already imported (content hash " + hash.substring(0, 8) + ")");
         }
-        Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new NotFoundException("Category not found: id=" + categoryId));
+        Category category = resolveCategory(categoryId, categoryName);
 
         // Store under the category directory: data/epub/<category>/<hash>-<original name>.epub
         String savedPath = epubStorage.save(data, fileName, category.getName());
@@ -152,6 +160,16 @@ public class AdminService {
         coverStorage.delete(novel.getCoverImage());
         log.info("Deleted novel: id={} title={} chapters={} sourceFile={}", id, novel.getTitle(), removed,
                 sourceFile == null ? "none" : sourceFile);
+    }
+
+    /** Category of an import: by id, else by name (created when missing), else the default category */
+    private Category resolveCategory(Long categoryId, String categoryName) {
+        if (categoryId != null) {
+            return categoryRepository.findById(categoryId)
+                    .orElseThrow(() -> new NotFoundException("Category not found: id=" + categoryId));
+        }
+        String name = categoryName == null || categoryName.isBlank() ? defaultCategoryName : categoryName.trim();
+        return novelService.findOrCreateCategory(name);
     }
 
     /**

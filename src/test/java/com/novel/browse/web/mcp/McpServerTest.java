@@ -1,8 +1,7 @@
 package com.novel.browse.web.mcp;
 
 import com.novel.browse.config.McpProperties;
-import com.novel.browse.domain.Category;
-import com.novel.browse.repository.CategoryRepository;
+import com.novel.browse.domain.Novel;
 import com.novel.browse.service.AdminService;
 import com.novel.browse.service.NovelService;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,14 +9,13 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.util.Optional;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -30,15 +28,13 @@ class McpServerTest {
 
     private AdminService adminService;
     private NovelService novelService;
-    private CategoryRepository categoryRepository;
     private McpServer server;
 
     @BeforeEach
     void setUp() {
         adminService = mock(AdminService.class);
         novelService = mock(NovelService.class);
-        categoryRepository = mock(CategoryRepository.class);
-        server = new McpServer(adminService, novelService, categoryRepository, new McpProperties(), "Imported");
+        server = new McpServer(adminService, novelService, new McpProperties());
     }
 
     @Test
@@ -86,7 +82,7 @@ class McpServerTest {
         JsonNode result = callTool("upload_epub", "{\"fileName\":\"bad.txt\",\"contentBase64\":\"AA==\"}");
         assertTrue(result.path("isError").asBoolean(), result.toString());
         assertTrue(textOf(result).contains("Only EPUB files (.epub) are supported"), textOf(result));
-        verify(adminService, never()).upload(any(byte[].class), anyString(), anyLong(), any(), any());
+        verify(adminService, never()).upload(any(byte[].class), anyString(), any(), any(), any(), any());
     }
 
     @Test
@@ -97,13 +93,15 @@ class McpServerTest {
     }
 
     @Test
-    void uploadReportsUnknownCategoryWithTheAvailableOnes() {
-        when(novelService.listCategories()).thenReturn(java.util.List.of(new Category("玄幻奇幻", "", 1)));
-        when(categoryRepository.findByName("不存在")).thenReturn(Optional.empty());
+    void uploadDelegatesToAdminServiceAndReturnsTheCreatedNovel() {
+        Novel novel = new Novel();
+        novel.setTitle("新书");
+        when(adminService.upload(any(byte[].class), eq("a.epub"), isNull(), eq("玄幻奇幻"), any(), any()))
+                .thenReturn(novel);
         JsonNode result = callTool("upload_epub",
-                "{\"fileName\":\"a.epub\",\"contentBase64\":\"AA==\",\"categoryName\":\"不存在\"}");
-        assertTrue(textOf(result).contains("Category not found"), textOf(result));
-        assertTrue(textOf(result).contains("玄幻奇幻"), textOf(result));
+                "{\"fileName\":\"a.epub\",\"contentBase64\":\"AA==\",\"categoryName\":\"玄幻奇幻\"}");
+        assertFalse(result.path("isError").asBoolean(), textOf(result));
+        assertEquals("新书", result.path("structuredContent").path("title").asString());
     }
 
     @Test

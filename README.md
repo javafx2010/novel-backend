@@ -8,7 +8,7 @@ Java / Spring Boot 编写的在线小说阅读网站后端。**前后端分离**
 | --- | --- |
 | 构建工具 | Gradle 9.6.0（Wrapper，发行包走腾讯云镜像） |
 | 框架 | Spring Boot 4.1.1（Web / Data JPA / Cache） |
-| 数据库 | H2 内存数据库（启动时建表并种子演示数据，进程退出即释放） |
+| 数据库 | H2 内存数据库（启动时建表，不含任何种子数据，进程退出即释放） |
 | 缓存 | RocksDB（`rocksdbjni`）本地嵌入式实现，自定义 `CacheManager` |
 | EPUB 解析 | jsoup + `java.util.zip` + JAXP 自研解析（zip → container.xml → OPF spine） |
 | 运行时 | JDK 21 |
@@ -24,7 +24,7 @@ src/main/java/com/novel/browse
 ├── NovelBrowseApplication.java     启动类
 ├── cache/                          RocksDB 缓存实现（CacheManager / Cache / 配置 / 序列化）
 ├── config/WebConfig.java           跨域配置
-├── data/DataInitializer.java       演示数据种子（6 分类、8 本书、99 章）
+├── data/EpubAutoLoader.java        启动扫描上传目录并导入 EPUB（分类按目录自动创建）
 ├── domain/                         Category / Novel / Chapter 实体
 ├── repository/                     Spring Data JPA 仓储
 ├── service/                        业务服务（带 @Cacheable / @CacheEvict）
@@ -184,7 +184,6 @@ cp ~/books/*.epub ~/apps/novel-browse/data/epub/武侠修真/
 | 来源 | 说明 |
 | --- | --- |
 | EPUB 内嵌封面 | 导入（上传 / 启动扫描）时自动提取：EPUB2 的 `<meta name="cover">`、EPUB3 的 `properties="cover-image"`，再退到 id/href 含 cover 的图片资源；存到 `app.cover.dir`（默认 `./data/covers`，部署时 `$APP_ROOT/data/covers`），文件名 `<内容哈希前8位>-cover.jpg` |
-| 内置演示封面 | 8 本演示书的封面打包在 `src/main/resources/static/covers/demo-*.jpg`（jar 内），与运行时提取的封面同在 `/covers/**` 下访问 |
 
 - 访问地址：`GET /covers/<file>`（`WebConfig` 同时映射运行时目录与 classpath，缓存 1 小时）
 - EPUB 没有封面时 `coverUrl` 为 null（全局 `non_null`，字段不输出），前端用渐变兜底
@@ -269,7 +268,7 @@ rocksdb:
     enabled: true
     path: ./.rocksdb-cache
     ttl: 10m
-    clean-on-start: true   # 内存库每次启动会重新种子，因此默认启动时清空本地缓存
+    clean-on-start: true   # 内存库每次启动都重新导入，因此默认启动时清空本地缓存
     names: [novel-home-list, novel-detail, novel-chapter, novel-chapter-no, novel-chapter-list]
 ```
 
@@ -277,4 +276,4 @@ rocksdb:
 
 ## 说明
 
-站内书目、作者与章节正文均为演示数据（按题材段落池生成），不涉及任何第三方版权内容。
+站点不内置任何书目数据：首次启动后是空的，把 EPUB 放进 `data/epub/<分类名>/`（启动自动扫描导入），或用管理接口 `POST /admin/novels`、MCP 工具 `upload_epub` 导入；分类在导入时按目录名或 `categoryName` 自动创建。仓库内不含任何第三方文本。

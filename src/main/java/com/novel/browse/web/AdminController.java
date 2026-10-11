@@ -36,15 +36,22 @@ public class AdminController {
         this.adminService = adminService;
     }
 
-    /** Uploads an EPUB: parses it and creates the novel with its chapters */
+    /**
+     * Uploads an EPUB: parses it and creates the novel with its chapters.
+     * <p>
+     * The target category is {@code categoryId}, else {@code categoryName} (created when it does not exist),
+     * else {@code app.upload.default-category-name}.
+     */
     @PostMapping(value = "/novels", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public NovelSummary upload(@RequestPart("file") MultipartFile file,
-                               @RequestParam("categoryId") Long categoryId,
+                               @RequestParam(value = "categoryId", required = false) Long categoryId,
+                               @RequestParam(value = "categoryName", required = false) String categoryName,
                                @RequestParam(value = "status", required = false) String status,
                                @RequestParam(value = "tags", required = false) String tags) throws IOException {
         validateEpub(file);
-        Novel novel = adminService.upload(file.getBytes(), file.getOriginalFilename(), categoryId, status, tags);
+        Novel novel = adminService.upload(file.getBytes(), file.getOriginalFilename(), categoryId, categoryName,
+                status, tags);
         return NovelSummary.of(novel);
     }
 

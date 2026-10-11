@@ -24,7 +24,7 @@
 ├── run/novel-browse.pid             # pid 文件（nohup 模式）
 ├── data/rocksdb-cache/              # RocksDB 缓存目录
 ├── data/epub/                       # 上传的 EPUB 原文件：子目录名 = 分类名，启动时双向同步并自动导入
-├── data/covers/                     # 从 EPUB 提取的封面图（演示封面内置在 jar 的 static/covers）
+├── data/covers/                     # 从 EPUB 提取的封面图（站点无内置书目数据，封面均来自导入）
 └── app.env                          # systemd 模式下的运行参数
 ```
 

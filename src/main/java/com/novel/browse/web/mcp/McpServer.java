@@ -3,7 +3,6 @@ package com.novel.browse.web.mcp;
 import com.novel.browse.config.McpProperties;
 import com.novel.browse.domain.Category;
 import com.novel.browse.domain.Novel;
-import com.novel.browse.repository.CategoryRepository;
 import com.novel.browse.service.AdminService;
 import com.novel.browse.service.BadRequestException;
 import com.novel.browse.service.NotFoundException;
@@ -11,7 +10,6 @@ import com.novel.browse.service.NovelService;
 import com.novel.browse.web.dto.NovelSummary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -23,7 +21,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Minimal MCP server over JSON-RPC 2.0 (Streamable HTTP): {@code initialize}, {@code tools/list},
@@ -46,22 +43,16 @@ public class McpServer {
 
     private final AdminService adminService;
     private final NovelService novelService;
-    private final CategoryRepository categoryRepository;
-    private final String defaultCategoryName;
     private final McpProperties properties;
     private final ObjectMapper mapper = new ObjectMapper();
     private final Map<String, McpTool> tools = new LinkedHashMap<>();
 
     public McpServer(AdminService adminService,
                      NovelService novelService,
-                     CategoryRepository categoryRepository,
-                     McpProperties properties,
-                     @Value("${app.upload.default-category-name:Imported}") String defaultCategoryName) {
+                     McpProperties properties) {
         this.adminService = adminService;
         this.novelService = novelService;
-        this.categoryRepository = categoryRepository;
         this.properties = properties;
-        this.defaultCategoryName = defaultCategoryName;
 
         register(new McpTool("upload_epub",
                 "Import an EPUB book: parses chapters, extracts the cover and creates the novel. "
@@ -269,8 +260,9 @@ public class McpServer {
         if (data.length == 0) {
             throw new BadRequestException("The decoded EPUB content is empty");
         }
-        Category category = resolveCategory(args);
-        Novel novel = adminService.upload(data, fileName, category.getId(), text(args, "status"), text(args, "tags"));
+        Long categoryId = args.hasNonNull("categoryId") ? args.get("categoryId").asLong() : null;
+        Novel novel = adminService.upload(data, fileName, categoryId, text(args, "categoryName"),
+                text(args, "status"), text(args, "tags"));
         return toNode(NovelSummary.of(novel));
     }
 
@@ -311,26 +303,6 @@ public class McpServer {
         return result;
     }
 
-    private Category resolveCategory(JsonNode args) {
-        if (args.hasNonNull("categoryId")) {
-            final long id = args.get("categoryId").asLong();
-            return categoryRepository.findById(id)
-                    .orElseThrow(() -> new NotFoundException("Category not found: id=" + id));
-        }
-        final String name = defaultIfBlank(text(args, "categoryName"), defaultCategoryName);
-        return categoryRepository.findByName(name)
-                .orElseThrow(() -> new NotFoundException(
-                        "Category not found: " + name + ", available: " + availableCategories()));
-    }
-
-    private String defaultIfBlank(String value, String fallback) {
-        return value == null || value.isBlank() ? fallback : value;
-    }
-
-    private String availableCategories() {
-        return novelService.listCategories().stream().map(Category::getName).collect(Collectors.joining(", "));
-    }
-
     // ------------------------------------------------------------------
     // helpers
     // ------------------------------------------------------------------
@@ -364,7 +336,7 @@ public class McpServer {
         properties.set("fileName", stringProperty("Original file name, must end with .epub"));
         properties.set("contentBase64", stringProperty("Base64 encoded content of the EPUB file"));
         properties.set("categoryId", integerProperty("Target category id; omit to use categoryName"));
-        properties.set("categoryName", stringProperty("Target category name, used when categoryId is omitted"
+        properties.set("categoryName", stringProperty("Target category name, created when it does not exist yet"
                 + " (defaults to app.upload.default-category-name)"));
         properties.set("status", stringProperty("Serialization status: ONGOING or FINISHED, default ONGOING"));
         properties.set("tags", stringProperty("Comma separated tags; defaults to the EPUB dc:subject"));
@@ -379,7 +351,7 @@ public class McpServer {
         properties.set("description", stringProperty("New description"));
         properties.set("status", stringProperty("New status: ONGOING or FINISHED"));
         properties.set("tags", stringProperty("New tags, comma separated"));
-        properties.set("categoryId", integerProperty("Move the novel to this category id"));
+        properties.set("categoryId", integerProperty("Move the novel to this category id (must already exist)"));
         return schema(properties, List.of("id"));
     }
 

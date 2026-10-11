@@ -4,6 +4,7 @@ import com.novel.browse.domain.Category;
 import com.novel.browse.repository.CategoryRepository;
 import com.novel.browse.repository.NovelRepository;
 import com.novel.browse.service.AdminService;
+import com.novel.browse.service.NovelService;
 import com.novel.browse.service.epub.EpubStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,7 +26,8 @@ import java.util.Map;
  *   <li>Category to subdirectory: missing directories are created for existing categories so EPUB files can be dropped in;</li>
  *   <li>Files are imported with content-hash deduplication, already imported files are skipped, a single failure is logged as ERROR and the scan continues.</li>
  * </ol>
- * Runs after {@link DataInitializer} (larger Order value).
+ * Runs at startup (Order 100); the site ships without seed data, so this scan plus uploads are the only
+ * way books enter the library.
  */
 @Component
 @Order(100)
@@ -35,6 +37,7 @@ public class EpubAutoLoader implements CommandLineRunner {
 
     private final EpubStorage epubStorage;
     private final AdminService adminService;
+    private final NovelService novelService;
     private final NovelRepository novelRepository;
     private final CategoryRepository categoryRepository;
 
@@ -54,10 +57,12 @@ public class EpubAutoLoader implements CommandLineRunner {
 
     public EpubAutoLoader(EpubStorage epubStorage,
                           AdminService adminService,
+                          NovelService novelService,
                           NovelRepository novelRepository,
                           CategoryRepository categoryRepository) {
         this.epubStorage = epubStorage;
         this.adminService = adminService;
+        this.novelService = novelService;
         this.novelRepository = novelRepository;
         this.categoryRepository = categoryRepository;
     }
@@ -124,13 +129,7 @@ public class EpubAutoLoader implements CommandLineRunner {
     }
 
     /** Resolves (or creates) the category for a directory */
-    @Transactional
     protected Category resolveCategory(String categoryName) {
-        return categoryRepository.findByName(categoryName).orElseGet(() -> {
-            Category created = categoryRepository.save(
-                    new Category(categoryName, "Category created from the upload directory", 999));
-            log.info("Category created for directory: {} (id={})", categoryName, created.getId());
-            return created;
-        });
+        return novelService.findOrCreateCategory(categoryName);
     }
 }

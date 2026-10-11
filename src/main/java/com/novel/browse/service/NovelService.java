@@ -5,6 +5,8 @@ import com.novel.browse.domain.Category;
 import com.novel.browse.domain.Novel;
 import com.novel.browse.repository.CategoryRepository;
 import com.novel.browse.repository.NovelRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -15,10 +17,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @Transactional(readOnly = true)
 public class NovelService {
+
+    /** Fallback when no category name is supplied */
+    private static final String DEFAULT_CATEGORY_NAME = "Imported";
+
+    private static final Logger log = LoggerFactory.getLogger(NovelService.class);
 
     private final NovelRepository novelRepository;
     private final CategoryRepository categoryRepository;
@@ -35,6 +43,26 @@ public class NovelService {
     public Category getCategory(Long id) {
         return categoryRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Category not found: id=" + id));
+    }
+
+    /**
+     * Finds a category by name and creates it when missing: the site ships without any seed data,
+     * so categories appear when the first book of a genre is imported (upload, MCP or startup scan).
+     */
+    @Transactional
+    public Category findOrCreateCategory(String name) {
+        String target = name == null || name.isBlank() ? DEFAULT_CATEGORY_NAME : name.trim();
+        return categoryRepository.findByName(target).orElseGet(() -> {
+            int maxSort = categoryRepository.findAllByOrderBySortNoAsc().stream()
+                    .map(Category::getSortNo)
+                    .filter(Objects::nonNull)
+                    .mapToInt(Integer::intValue)
+                    .max()
+                    .orElse(0);
+            Category created = categoryRepository.save(new Category(target, "Created on import", maxSort + 1));
+            log.info("Category created on import: {} (id={}, sortNo={})", target, created.getId(), created.getSortNo());
+            return created;
+        });
     }
 
     @Cacheable(cacheNames = CacheNames.NOVEL_DETAIL, key = "#id")
