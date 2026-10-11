@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -86,8 +88,9 @@ class NovelLanguageApiTest {
     @Test
     void homeAggregatesAndAdminListCanBeRestrictedToOneLanguage() {
         // other test classes share the in-memory database, so every count is measured against a baseline
-        long totalBefore = get("/home").path("totalNovels").asLong();
+        long allBefore = get("/home?language=all").path("totalNovels").asLong();
         long chineseBefore = get("/home?language=zh_CN").path("totalNovels").asLong();
+        long englishBefore = get("/home?language=en").path("totalNovels").asLong();
 
         upload(epub("星海孤舟", "佚名", "zh-CN", "第一章 启航", "星船驶出港口。"), "star-zh.epub", "zh_CN", null, HOME);
         upload(epub("星海孤舟", "佚名", "en", "Chapter One", "The star ship left the harbour."), "star-en.epub", "en", null, HOME);
@@ -98,7 +101,7 @@ class NovelLanguageApiTest {
 
         // every block of the home page, the counter included, respects the requested language
         assertEquals(chineseBefore + 2, chineseHome.path("totalNovels").asLong());
-        assertEquals(totalBefore + 3, get("/home").path("totalNovels").asLong());
+        assertEquals(englishBefore + 1, englishHome.path("totalNovels").asLong());
         assertOnlyLanguage(chineseHome.path("recommends"), "zh_CN");
         assertOnlyLanguage(chineseHome.path("hot"), "zh_CN");
         assertOnlyLanguage(chineseHome.path("finished"), "zh_CN");
@@ -107,11 +110,32 @@ class NovelLanguageApiTest {
         assertOnlyLanguage(englishHome.path("hot"), "en");
         assertOnlyLanguage(englishHome.path("recommends"), "en");
         assertOnlyLanguage(englishHome.path("categories"), "en");
+        // language=all is the escape hatch: every version of every work
+        assertEquals(allBefore + 3, get("/home?language=all").path("totalNovels").asLong());
 
         // the admin list filters the same way
         assertEquals(chineseBefore + 2, getArray("/admin/novels?language=zh_CN").size());
-        assertTrue(getArray("/admin/novels?language=en").size() >= 1);
-        assertTrue(getArray("/admin/novels").size() >= getArray("/admin/novels?language=zh_CN").size());
+        assertEquals(englishBefore + 1, getArray("/admin/novels?language=en").size());
+        assertEquals(allBefore + 3, getArray("/admin/novels?language=all").size());
+    }
+
+    @Test
+    void aListingWithoutLanguageServesOneLanguageInsteadOfMixingThem() {
+        long chineseBefore = get("/home?language=zh_CN").path("totalNovels").asLong();
+        long englishBefore = get("/home?language=en").path("totalNovels").asLong();
+        upload(epub("夜航西飞", "青野", "zh-CN", "第一章 起飞", "飞机穿过云层。"), "flight-zh.epub", "zh_CN", null, HOME);
+        upload(epub("夜航西飞", "青野", "en", "Chapter One", "The plane crossed the clouds."), "flight-en.epub", "en",
+                null, HOME);
+
+        // no parameter and no UI language: app.i18n.default-locale (zh_CN in the test configuration)
+        assertEquals(chineseBefore + 1, get("/home").path("totalNovels").asLong());
+        assertOnlyLanguage(get("/home").path("hot"), "zh_CN");
+        assertOnlyLanguage(get("/categories"), "zh_CN");
+        // the UI language of the request (Accept-Language) serves the matching library, English included
+        assertEquals(englishBefore + 1, get("/home", "en").path("totalNovels").asLong());
+        assertOnlyLanguage(get("/home", "en").path("hot"), "en");
+        assertOnlyLanguage(get("/categories", "en"), "en");
+        assertOnlyLanguage(get("/home", "zh_CN").path("hot"), "zh_CN");
     }
 
     @Test
@@ -231,7 +255,17 @@ class NovelLanguageApiTest {
     }
 
     private JsonNode get(String path) {
-        ResponseEntity<String> response = rest.getForEntity(url(path), String.class);
+        return get(path, null);
+    }
+
+    /** GET with an explicit {@code Accept-Language}, i.e. the language of the site asking for the data */
+    private JsonNode get(String path, String acceptLanguage) {
+        HttpHeaders headers = new HttpHeaders();
+        if (acceptLanguage != null) {
+            headers.set("Accept-Language", acceptLanguage);
+        }
+        ResponseEntity<String> response = rest.exchange(url(path), HttpMethod.GET, new HttpEntity<>(headers),
+                String.class);
         assertEquals(200, response.getStatusCode().value(), response.getBody());
         return parse(response.getBody());
     }

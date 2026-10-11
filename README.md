@@ -132,7 +132,7 @@ cp deploy.conf.example deploy.conf   # 可选：改端口 / JVM 参数 / 分支
 | --- | --- | --- |
 | `?lang=` 查询参数 | 最高 | `GET /novels/9999?lang=zh_CN` |
 | `Accept-Language` 请求头 | 次之 | `Accept-Language: zh-CN` |
-| `app.i18n.default-locale` | 兜底 | 未传、或语言不在白名单内时返回英文 |
+| `app.i18n.default-locale` | 兜底 | 未传、或语言不在白名单内时返回该配置的默认语言（仓库默认 `zh_CN`） |
 
 - 资源文件：`src/main/resources/i18n/messages.properties`（英语，同时作为兜底）、`messages_zh_CN.properties`（简体中文）
 - 白名单：`app.i18n.supported-locales`（默认 `en`、`zh_CN`），不在名单内的语言一律回退英语（不会退回 JVM 语言）
@@ -153,7 +153,7 @@ curl -H 'Accept-Language: zh-CN' http://localhost:8080/novels/9999
 ```yaml
 app:
   i18n:
-    default-locale: en
+    default-locale: zh_CN
     supported-locales: [ 'en', 'zh_CN' ]
 ```
 
@@ -161,12 +161,12 @@ app:
 
 同一部作品可以有多个语言版本，落到 `nb_novel.language` 与 `nb_novel.version_group` 两个字段：
 
-- 上传时可传 `language`（`en` / `zh_CN`…）；留空取 EPUB 的 `dc:language`，再取 `app.i18n.default-locale`（默认 `en`）
+- 上传时可传 `language`（`en` / `zh_CN`…）；留空取 EPUB 的 `dc:language`，再取 `app.i18n.default-locale`（默认 `zh_CN`）
 - 判重按「书名 + 作者 + 语言」：同语言再传一次是覆盖，**不同语言会新建一条**，两者共享同一个 `version_group`
 - `GET /novels/{id}/versions` 返回同一作品的全部版本（含自身，按语言升序），前端据此做「切到中文版 / English」
 - 书籍列表、检索、排行榜、分类书库、首页聚合、后台列表都支持 `?language=` 只看某个语言；`NovelSummary` 带 `language` 字段
 - 书籍详情的「同类推荐」只推同分类 + 同语言的书，并跳过同一作品的其它语言版本（那些走 `/novels/{id}/versions`）
-- 不传 `language` 时返回全部语言（同一作品的中英文版会同时出现），前端按站点语言固定传参即可
+- **不传 `language` 也不会中英文混合**：语言按 `?language=` → 请求的 `Accept-Language`（前端切站点语言时会发）→ `app.i18n.default-locale` 解析，列表默认就是单一语言；要全量数据显式传 `?language=all`（后台、MCP 盘点用）
 - **分类也按语言分开**：`nb_category` 带 `language`（唯一约束 `(name, language)`），中英文站各有自己的「玄幻奇幻」与各自简介；书籍只能挂到同语言的分类下，传错语言的 `categoryId` 返回 400
 - 上传时用 `categoryName` + `categoryDescription` 建立 / 更新该语言分类的简介；启动目录扫描按 EPUB 的 `dc:language` 落到对应语言的分类
 - MCP：`upload_epub` 支持 `language` / `versionGroup` / `categoryDescription`、`update_novel` 与 `list_novels` 支持 `language`，`list_categories` 支持 `language`，新增 `list_novel_versions` 查同一作品的各语言版本

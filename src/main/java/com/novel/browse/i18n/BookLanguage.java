@@ -10,8 +10,7 @@ import java.util.Locale;
  * Tags follow the {@code app.i18n.supported-locales} form ({@code en}, {@code zh_CN}): {@code zh}, {@code zh-CN}
  * and {@code zh-Hans} all normalize to {@code zh_CN}, {@code en-US} to {@code en}. A language outside the
  * supported set (say {@code fr}) is stored as given, so the library is not limited to the UI languages;
- * when nothing is supplied the default locale ({@code app.i18n.default-locale}, English unless configured
- * otherwise) applies.
+ * when nothing is supplied the default locale ({@code app.i18n.default-locale}) applies.
  */
 public final class BookLanguage {
 

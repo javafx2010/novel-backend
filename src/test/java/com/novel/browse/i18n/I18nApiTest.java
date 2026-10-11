@@ -18,8 +18,8 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Language of the REST error messages: {@code Accept-Language}, the {@code ?lang=} override and the
- * English fallback (see {@code app.i18n.*}).
+ * Language of the REST error messages: {@code Accept-Language}, the {@code ?lang=} override and the fallback to
+ * {@code app.i18n.default-locale} (Chinese in {@code application.yml}).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class I18nApiTest {
@@ -43,12 +43,12 @@ class I18nApiTest {
     }
 
     @Test
-    void messagesAreEnglishWithoutAnyLanguageHint() {
+    void messagesUseTheDefaultLocaleWithoutAnyLanguageHint() {
         Response response = get("/novels/9999", null);
 
         assertEquals(404, response.status());
-        assertEquals("Novel not found: id=9999", response.message());
-        assertEquals("en", response.language());
+        assertEquals("小说不存在：id=9999", response.message());
+        assertEquals("zh-CN", response.language());
     }
 
     @Test
@@ -67,11 +67,11 @@ class I18nApiTest {
     }
 
     @Test
-    void unsupportedLanguageFallsBackToEnglish() {
+    void unsupportedLanguageFallsBackToTheDefaultLocale() {
         Response response = get("/novels/9999", "fr-FR,fr;q=0.9");
 
-        assertEquals("Novel not found: id=9999", response.message());
-        assertEquals("en", response.language());
+        assertEquals("小说不存在：id=9999", response.message());
+        assertEquals("zh-CN", response.language());
     }
 
     private Response get(String path, String language) {

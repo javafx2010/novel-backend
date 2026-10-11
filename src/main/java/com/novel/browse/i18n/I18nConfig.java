@@ -24,7 +24,8 @@ import java.util.Objects;
  * <p>
  * Messages live in {@code src/main/resources/i18n/messages*.properties}; {@code messages.properties} is the
  * English default and the fallback for every unsupported locale. The locale of a request is picked by
- * {@link AppLocaleResolver} from {@code ?lang=} or {@code Accept-Language}, English when neither is usable.
+ * {@link AppLocaleResolver} from {@code ?lang=} or {@code Accept-Language}, {@code app.i18n.default-locale} when
+ * neither is usable.
  */
 @Configuration
 public class I18nConfig implements WebMvcConfigurer {

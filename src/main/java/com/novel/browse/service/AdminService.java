@@ -188,15 +188,17 @@ public class AdminService {
     /**
      * Admin novel list restricted to one language version: newest update first.
      *
-     * @param language language tag ({@code en} / {@code zh_CN}…), blank for every language
+     * @param language language tag ({@code en} / {@code zh_CN}…); blank falls back to the language of the
+     *                 request ({@code Accept-Language}) and then to {@code app.i18n.default-locale};
+     *                 {@code all} lists every language version
      */
     @Transactional(readOnly = true)
     public List<Novel> listNovels(String language) {
-        if (language == null || language.isBlank()) {
+        String tag = novelService.effectiveLanguage(language);
+        if (NovelService.ALL_LANGUAGES.equals(tag)) {
             return listNovels();
         }
-        return novelRepository.findAllByLanguageIgnoreCaseOrderByUpdatedAtDesc(
-                BookLanguage.normalize(language, settings));
+        return novelRepository.findAllByLanguageIgnoreCaseOrderByUpdatedAtDesc(tag);
     }
 
     /** Deletes a novel with its chapters and removes the source EPUB from disk */

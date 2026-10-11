@@ -5,6 +5,7 @@ import com.novel.browse.domain.Category;
 import com.novel.browse.domain.Novel;
 import com.novel.browse.i18n.BookLanguage;
 import com.novel.browse.i18n.I18nSettings;
+import com.novel.browse.i18n.Locales;
 import com.novel.browse.repository.CategoryRepository;
 import com.novel.browse.repository.NovelRepository;
 import org.slf4j.Logger;
@@ -18,6 +19,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.List;
 import java.util.Locale;
@@ -29,6 +32,9 @@ public class NovelService {
 
     /** Fallback when no category name is supplied */
     private static final String DEFAULT_CATEGORY_NAME = "Imported";
+
+    /** Requested language meaning "no filter": {@code ?language=all} keeps every language version */
+    public static final String ALL_LANGUAGES = "*";
 
     private static final Logger log = LoggerFactory.getLogger(NovelService.class);
 
@@ -51,13 +57,60 @@ public class NovelService {
     /**
      * Categories of one language, in navigation order.
      *
-     * @param language language tag ({@code en} / {@code zh_CN}…), blank for every language
+     * @param language language tag ({@code en} / {@code zh_CN}…); blank falls back to the UI language, then to
+     *                 {@code app.i18n.default-locale}; {@code all} returns every language
      */
     public List<Category> listCategories(String language) {
-        if (language == null || language.isBlank()) {
+        String tag = effectiveLanguage(language);
+        if (ALL_LANGUAGES.equals(tag)) {
             return listCategories();
         }
-        return categoryRepository.findAllByLanguageOrderBySortNoAsc(BookLanguage.normalize(language, settings));
+        return categoryRepository.findAllByLanguageOrderBySortNoAsc(tag);
+    }
+
+    /**
+     * The language a listing actually serves: {@code ?language=} first, then the UI language of the request
+     * ({@code Accept-Language}, which is what the front end sends when it switches site language), then
+     * {@code app.i18n.default-locale}. {@code language=all} (or {@code *}) disables the filter.
+     * <p>
+     * Every listing is resolved through this method, so a site that never passes {@code language} still shows
+     * one language instead of a Chinese/English mix.
+     *
+     * @return a language tag, or {@link #ALL_LANGUAGES} for "no filter"
+     */
+    public String effectiveLanguage(String language) {
+        String requested = language == null ? null : language.trim();
+        if (requested == null || requested.isEmpty()) {
+            requested = requestLanguage();
+        }
+        if (requested == null || requested.isEmpty()) {
+            return BookLanguage.defaultTag(settings);
+        }
+        if ("all".equalsIgnoreCase(requested) || ALL_LANGUAGES.equals(requested)) {
+            return ALL_LANGUAGES;
+        }
+        return BookLanguage.normalize(requested, settings);
+    }
+
+    /**
+     * The UI language of the current request ({@code Accept-Language}), or {@code null} when the request carries
+     * none or asks for a language the site does not publish.
+     */
+    private String requestLanguage() {
+        ServletRequestAttributes attributes =
+                RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes servlet
+                        ? servlet : null;
+        if (attributes == null) {
+            return null;
+        }
+        String header = attributes.getRequest().getHeader("Accept-Language");
+        if (header == null || header.isBlank()) {
+            return null;
+        }
+        // first tag only: "zh-CN,zh;q=0.9" -> "zh-CN"
+        String first = header.split(",", 2)[0].split(";", 2)[0].trim();
+        Locale matched = Locales.match(Locales.parse(first), settings.supportedLocales());
+        return matched == null ? null : Locales.tag(matched);
     }
 
     public Category getCategory(Long id) {
@@ -196,12 +249,12 @@ public class NovelService {
         return novelRepository.findByVersionGroupOrderByLanguage(group);
     }
 
-    /** Restricts a listing to one language; blank means every language */
+    /** Restricts a listing to one language; {@link #ALL_LANGUAGES} means every language */
     private Specification<Novel> languageSpec(String language) {
-        if (language == null || language.isBlank()) {
+        String tag = effectiveLanguage(language);
+        if (ALL_LANGUAGES.equals(tag)) {
             return (root, query, builder) -> builder.conjunction();
         }
-        String tag = BookLanguage.normalize(language, settings);
         return (root, query, builder) -> builder.equal(root.get("language"), tag);
     }
 

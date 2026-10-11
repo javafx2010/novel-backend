@@ -30,7 +30,6 @@ spring:
       path: /h2-console
   jackson:
     default-property-inclusion: non_null
-
 # 跨域：前端独立部署时放开来源（生产环境请填写具体域名）
 app:
   cors:
@@ -41,7 +40,8 @@ app:
   i18n:
     # 多语言：接口返回的 message 按请求语言输出（资源文件 src/main/resources/i18n/messages*.properties）
     # 语言来源：?lang= 参数 > Accept-Language 请求头 > default-locale；不在 supported-locales 内一律回退默认语言
-    default-locale: en
+    # 同时也是书目 / 分类列表的兜底：请求没带 language 也没带 Accept-Language 时返回该语言的书，不会中英混排
+    default-locale: zh_CN
     supported-locales: [ 'en', 'zh_CN' ]
   auth:
     # 读者账户：会话有效期（天），注册/登录后写入同名 cookie（HttpOnly）

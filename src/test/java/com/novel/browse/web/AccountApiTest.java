@@ -106,21 +106,22 @@ class AccountApiTest {
 
         Response sameEmail = register("other_user", "DUP@example.com");
         assertEquals(400, sameEmail.status());
-        assertEquals("Email is already registered: dup@example.com", sameEmail.body().path("message").asString());
+        // the default locale of the messages is app.i18n.default-locale (zh_CN) when the request carries no language
+        assertEquals("邮箱已注册：dup@example.com", sameEmail.body().path("message").asString());
 
         Response sameName = register("DUP_USER", "another@example.com");
         assertEquals(400, sameName.status());
-        assertEquals("Username is already taken: DUP_USER", sameName.body().path("message").asString());
+        assertEquals("用户名已被占用：DUP_USER", sameName.body().path("message").asString());
 
         Response badEmail = register("bad_mail", "not-an-email");
         assertEquals(400, badEmail.status());
-        assertTrue(badEmail.body().path("message").asString().contains("Email is not valid"),
+        assertTrue(badEmail.body().path("message").asString().contains("邮箱格式不正确"),
                 badEmail.body().toString());
 
         Response shortPassword = call("POST", "/auth/register",
                 "{\"username\":\"short_pw\",\"email\":\"short@example.com\",\"password\":\"123\"}", null);
         assertEquals(400, shortPassword.status());
-        assertEquals("Password must be 8-64 characters", shortPassword.body().path("message").asString());
+        assertEquals("密码长度必须为 8-64 个字符", shortPassword.body().path("message").asString());
     }
 
     @Test
@@ -130,7 +131,7 @@ class AccountApiTest {
         Response wrong = call("POST", "/auth/login",
                 json(new LoginRequest("login@example.com", "wrong-password")), null);
         assertEquals(401, wrong.status());
-        assertEquals("Email or password is incorrect", wrong.body().path("message").asString());
+        assertEquals("邮箱或密码错误", wrong.body().path("message").asString());
 
         Response loggedIn = call("POST", "/auth/login",
                 json(new LoginRequest("login@example.com", PASSWORD)), null);
