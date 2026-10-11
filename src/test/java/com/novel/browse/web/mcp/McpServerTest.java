@@ -97,7 +97,8 @@ class McpServerTest {
         JsonNode result = callTool("upload_epub", "{\"fileName\":\"bad.txt\",\"contentBase64\":\"AA==\"}");
         assertTrue(result.path("isError").asBoolean(), result.toString());
         assertTrue(textOf(result).contains("Only EPUB files (.epub) are supported"), textOf(result));
-        verify(adminService, never()).upload(any(byte[].class), anyString(), any(), any(), any(), any());
+        verify(adminService, never()).upload(any(byte[].class), anyString(), any(), any(), any(), any(),
+                any(), any());
     }
 
     @Test
@@ -111,7 +112,8 @@ class McpServerTest {
     void uploadDelegatesToAdminServiceAndReturnsTheCreatedNovel() {
         Novel novel = new Novel();
         novel.setTitle("新书");
-        when(adminService.upload(any(byte[].class), eq("a.epub"), isNull(), eq("玄幻奇幻"), any(), any()))
+        when(adminService.upload(any(byte[].class), eq("a.epub"), isNull(), eq("玄幻奇幻"), any(), any(),
+                any(), any()))
                 .thenReturn(novel);
         JsonNode result = callTool("upload_epub",
                 "{\"fileName\":\"a.epub\",\"contentBase64\":\"AA==\",\"categoryName\":\"玄幻奇幻\"}");
@@ -124,7 +126,7 @@ class McpServerTest {
         JsonNode result = callTool("update_novel", "{\"title\":\"x\"}");
         assertTrue(result.path("isError").asBoolean());
         assertTrue(textOf(result).contains("id is required"), textOf(result));
-        verify(adminService, never()).updateNovel(any(), any(), any(), any(), any(), any(), any());
+        verify(adminService, never()).updateNovel(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test

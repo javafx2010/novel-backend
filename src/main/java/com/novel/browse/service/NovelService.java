@@ -3,6 +3,8 @@ package com.novel.browse.service;
 import com.novel.browse.cache.CacheNames;
 import com.novel.browse.domain.Category;
 import com.novel.browse.domain.Novel;
+import com.novel.browse.i18n.BookLanguage;
+import com.novel.browse.i18n.I18nSettings;
 import com.novel.browse.repository.CategoryRepository;
 import com.novel.browse.repository.NovelRepository;
 import org.slf4j.Logger;
@@ -13,10 +15,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 @Service
@@ -30,10 +34,13 @@ public class NovelService {
 
     private final NovelRepository novelRepository;
     private final CategoryRepository categoryRepository;
+    private final I18nSettings settings;
 
-    public NovelService(NovelRepository novelRepository, CategoryRepository categoryRepository) {
+    public NovelService(NovelRepository novelRepository, CategoryRepository categoryRepository,
+                        I18nSettings settings) {
         this.novelRepository = novelRepository;
         this.categoryRepository = categoryRepository;
+        this.settings = settings;
     }
 
     public List<Category> listCategories() {
@@ -103,27 +110,70 @@ public class NovelService {
         return novelRepository.findByStatusOrderByViewCountDesc(Novel.STATUS_FINISHED, pageable);
     }
 
-    public Page<Novel> pageByCategory(Category category, String sort, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        if ("update".equalsIgnoreCase(sort)) {
-            return novelRepository.findByCategoryOrderByUpdatedAtDesc(category, pageable);
-        }
-        return novelRepository.findByCategoryOrderByViewCountDesc(category, pageable);
+    /**
+     * Category library, sort supports hot(popularity) / update(recency).
+     *
+     * @param language restrict to one language version, blank for every language
+     */
+    public Page<Novel> pageByCategory(Category category, String sort, String language, int page, int size) {
+        Sort ordering = "update".equalsIgnoreCase(sort)
+                ? Sort.by(Sort.Direction.DESC, "updatedAt")
+                : Sort.by(Sort.Direction.DESC, "viewCount");
+        Pageable pageable = PageRequest.of(page, size, ordering);
+        return novelRepository.findAll(languageSpec(language).and(categorySpec(category)), pageable);
     }
 
-    /** Ranking: ordered by view count by default, by rating when type=rating */
-    public Page<Novel> rankPage(String type, int page, int size) {
+    /**
+     * Ranking: ordered by view count by default, by rating when type=rating.
+     *
+     * @param language restrict to one language version, blank for every language
+     */
+    public Page<Novel> rankPage(String type, String language, int page, int size) {
         Sort sort = "rating".equalsIgnoreCase(type)
                 ? Sort.by(Sort.Direction.DESC, "rating", "viewCount")
                 : Sort.by(Sort.Direction.DESC, "viewCount");
-        return novelRepository.findAll(PageRequest.of(page, size, sort));
+        return novelRepository.findAll(languageSpec(language), PageRequest.of(page, size, sort));
     }
 
-    public Page<Novel> search(String keyword, int page, int size) {
+    /** Keyword search: title / author / tags, optionally restricted to one language */
+    public Page<Novel> search(String keyword, String language, int page, int size) {
         if (keyword == null || keyword.isBlank()) {
             return Page.empty();
         }
-        return novelRepository.search(keyword.trim(), PageRequest.of(page, size));
+        String pattern = "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
+        Specification<Novel> keywordSpec = (root, query, builder) -> builder.or(
+                builder.like(builder.lower(root.get("title")), pattern),
+                builder.like(builder.lower(root.get("author")), pattern),
+                builder.like(builder.lower(root.get("tags")), pattern));
+        return novelRepository.findAll(languageSpec(language).and(keywordSpec), PageRequest.of(page, size));
+    }
+
+    /**
+     * Every language version of the same work, the requested one included.
+     * A book imported before multi language support has no group and is its only version.
+     */
+    @Transactional(readOnly = true)
+    public List<Novel> versions(Long id) {
+        Novel novel = novelRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("error.novel.notFound", id));
+        String group = novel.getVersionGroup();
+        if (group == null || group.isBlank()) {
+            return List.of(novel);
+        }
+        return novelRepository.findByVersionGroupOrderByLanguage(group);
+    }
+
+    /** Restricts a listing to one language; blank means every language */
+    private Specification<Novel> languageSpec(String language) {
+        if (language == null || language.isBlank()) {
+            return (root, query, builder) -> builder.conjunction();
+        }
+        String tag = BookLanguage.normalize(language, settings);
+        return (root, query, builder) -> builder.equal(root.get("language"), tag);
+    }
+
+    private static Specification<Novel> categorySpec(Category category) {
+        return (root, query, builder) -> builder.equal(root.get("category"), category);
     }
 
     /** Same category recommendation: excludes the novel itself */

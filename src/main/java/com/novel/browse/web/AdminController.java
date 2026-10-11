@@ -41,6 +41,11 @@ public class AdminController {
      * <p>
      * The target category is {@code categoryId}, else {@code categoryName} (created when it does not exist),
      * else {@code app.upload.default-category-name}.
+     * <p>
+     * {@code language} is the language of this edition ({@code en} / {@code zh_CN}); when omitted the EPUB
+     * {@code dc:language} applies, then {@code app.i18n.default-locale}. Uploading the same work in another
+     * language creates a second edition instead of overwriting the first one; both share a version group.
+     * {@code versionGroup} links the upload to an existing work explicitly (generated when omitted).
      */
     @PostMapping(value = "/novels", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
@@ -48,10 +53,13 @@ public class AdminController {
                                @RequestParam(value = "categoryId", required = false) Long categoryId,
                                @RequestParam(value = "categoryName", required = false) String categoryName,
                                @RequestParam(value = "status", required = false) String status,
-                               @RequestParam(value = "tags", required = false) String tags) throws IOException {
+                               @RequestParam(value = "tags", required = false) String tags,
+                               @RequestParam(value = "language", required = false) String language,
+                               @RequestParam(value = "versionGroup", required = false) String versionGroup)
+            throws IOException {
         validateEpub(file);
         Novel novel = adminService.upload(file.getBytes(), file.getOriginalFilename(), categoryId, categoryName,
-                status, tags);
+                status, tags, language, versionGroup);
         return NovelSummary.of(novel);
     }
 

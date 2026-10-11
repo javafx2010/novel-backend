@@ -13,7 +13,9 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "nb_novel", indexes = {
         @Index(name = "idx_novel_category", columnList = "category_id"),
-        @Index(name = "idx_novel_views", columnList = "view_count")
+        @Index(name = "idx_novel_views", columnList = "view_count"),
+        @Index(name = "idx_novel_language", columnList = "language"),
+        @Index(name = "idx_novel_group", columnList = "version_group")
 })
 public class Novel implements Serializable {
 
@@ -24,6 +26,9 @@ public class Novel implements Serializable {
     public static final String STATUS_ONGOING = "ONGOING";
     /** Completed status */
     public static final String STATUS_FINISHED = "FINISHED";
+
+    /** Language used when neither the request nor the EPUB metadata carries one (same tag as {@code app.i18n}) */
+    public static final String DEFAULT_LANGUAGE = "en";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -60,6 +65,17 @@ public class Novel implements Serializable {
     /** Comma separated tags */
     @Column(length = 128)
     private String tags;
+
+    /** Language of this edition, e.g. {@code en} or {@code zh_CN}: one work may exist in several languages */
+    @Column(name = "language", length = 16, nullable = false)
+    private String language = DEFAULT_LANGUAGE;
+
+    /**
+     * Shared by every language version of the same work (a UUID); versions are listed through
+     * {@code GET /novels/{id}/versions}. Null only for rows created before this feature.
+     */
+    @Column(name = "version_group", length = 64)
+    private String versionGroup;
 
     @ColumnDefault("0")
     @Column(nullable = false)
@@ -194,6 +210,22 @@ public class Novel implements Serializable {
 
     public void setTags(String tags) {
         this.tags = tags;
+    }
+
+    public String getLanguage() {
+        return language;
+    }
+
+    public void setLanguage(String language) {
+        this.language = language;
+    }
+
+    public String getVersionGroup() {
+        return versionGroup;
+    }
+
+    public void setVersionGroup(String versionGroup) {
+        this.versionGroup = versionGroup;
     }
 
     public Long getViewCount() {

@@ -6,7 +6,7 @@ import java.util.Locale;
 /**
  * Parsing and matching of the locales supported by the service.
  */
-final class Locales {
+public final class Locales {
 
     private Locales() {
     }
@@ -16,7 +16,7 @@ final class Locales {
      *
      * @return the parsed locale, or {@code null} when the tag carries no language
      */
-    static Locale parse(String tag) {
+    public static Locale parse(String tag) {
         if (tag == null || tag.isBlank()) {
             return null;
         }
@@ -29,7 +29,7 @@ final class Locales {
      *
      * @return the normalized locale, or {@code null} when it carries no language
      */
-    static Locale normalize(Locale locale) {
+    public static Locale normalize(Locale locale) {
         if (locale == null || locale.getLanguage().isEmpty()) {
             return null;
         }
@@ -44,7 +44,7 @@ final class Locales {
      *
      * @return the supported locale, or {@code null} when none matches
      */
-    static Locale match(Locale requested, List<Locale> supported) {
+    public static Locale match(Locale requested, List<Locale> supported) {
         Locale candidate = normalize(requested);
         if (candidate == null) {
             return null;
@@ -67,8 +67,22 @@ final class Locales {
     /**
      * Resolves a requested locale to a supported one, falling back to {@code fallback}.
      */
-    static Locale resolve(Locale requested, List<Locale> supported, Locale fallback) {
+    public static Locale resolve(Locale requested, List<Locale> supported, Locale fallback) {
         Locale matched = match(requested, supported);
         return matched != null ? matched : fallback;
+    }
+
+    /**
+     * Renders a locale in the tag form used by the configuration, e.g. {@code en} and {@code zh_CN}.
+     *
+     * @return the tag, or an empty string when the locale carries no language
+     */
+    public static String tag(Locale locale) {
+        if (locale == null || locale.getLanguage().isEmpty()) {
+            return "";
+        }
+        return locale.getCountry().isEmpty()
+                ? locale.getLanguage()
+                : locale.getLanguage() + "_" + locale.getCountry();
     }
 }

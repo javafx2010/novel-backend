@@ -62,48 +62,52 @@ public class HomeController {
         return CategoryDto.of(novelService.getCategory(id));
     }
 
-    /** Category library, sort supports hot(popularity) / update(recency) */
+    /** Category library, sort supports hot(popularity) / update(recency), {@code language} restricts the version */
     @GetMapping("/categories/{id}/novels")
     public PageResult<NovelSummary> novelsOfCategory(@PathVariable Long id,
                                                      @RequestParam(defaultValue = DEFAULT_SORT) String sort,
+                                                     @RequestParam(required = false) String language,
                                                      @RequestParam(defaultValue = "0") int page,
                                                      @RequestParam(defaultValue = "12") int size) {
         Category category = novelService.getCategory(id);
-        return PageResult.of(novelService.pageByCategory(category, sort, page, size), NovelSummary::of);
+        return PageResult.of(novelService.pageByCategory(category, sort, language, page, size), NovelSummary::of);
     }
 
-    /** All novels, filterable by category */
+    /** All novels, filterable by category and language */
     @GetMapping("/novels")
     public PageResult<NovelSummary> novels(@RequestParam(required = false) Long categoryId,
                                            @RequestParam(defaultValue = DEFAULT_SORT) String sort,
+                                           @RequestParam(required = false) String language,
                                            @RequestParam(defaultValue = "0") int page,
                                            @RequestParam(defaultValue = "12") int size) {
         Page<Novel> novels;
         if (categoryId != null) {
-            novels = novelService.pageByCategory(novelService.getCategory(categoryId), sort, page, size);
+            novels = novelService.pageByCategory(novelService.getCategory(categoryId), sort, language, page, size);
         } else {
-            novels = novelService.rankPage(sort, page, size);
+            novels = novelService.rankPage(sort, language, page, size);
         }
         return PageResult.of(novels, NovelSummary::of);
     }
 
-    /** Ranking, type supports hot(popularity) / rating(score) */
+    /** Ranking, type supports hot(popularity) / rating(score), {@code language} restricts the version */
     @GetMapping("/rank")
     public PageResult<NovelSummary> rank(@RequestParam(defaultValue = "hot") String type,
+                                         @RequestParam(required = false) String language,
                                          @RequestParam(defaultValue = "0") int page,
                                          @RequestParam(defaultValue = "20") int size) {
-        return PageResult.of(novelService.rankPage(type, page, size), NovelSummary::of);
+        return PageResult.of(novelService.rankPage(type, language, page, size), NovelSummary::of);
     }
 
-    /** Keyword search: title / author / tags */
+    /** Keyword search: title / author / tags, optionally restricted to one language */
     @GetMapping("/search")
     public PageResult<NovelSummary> search(@RequestParam(value = "q", required = false) String keyword,
+                                           @RequestParam(required = false) String language,
                                            @RequestParam(defaultValue = "0") int page,
                                            @RequestParam(defaultValue = "12") int size) {
         if (keyword == null || keyword.isBlank()) {
             return PageResult.empty(page, size);
         }
-        return PageResult.of(novelService.search(keyword.trim(), page, size), NovelSummary::of);
+        return PageResult.of(novelService.search(keyword.trim(), language, page, size), NovelSummary::of);
     }
 
     private List<NovelSummary> toSummaries(List<Novel> novels) {

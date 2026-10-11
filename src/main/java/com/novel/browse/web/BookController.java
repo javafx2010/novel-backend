@@ -49,6 +49,12 @@ public class BookController {
         return NovelDetail.of(novel, NovelSummary.of(novel), preview, related);
     }
 
+    /** Language versions of the same work (the requested book included), ordered by language */
+    @GetMapping("/{id}/versions")
+    public List<NovelSummary> versions(@PathVariable Long id) {
+        return novelService.versions(id).stream().map(NovelSummary::of).toList();
+    }
+
     /** Full table of contents */
     @GetMapping("/{id}/chapters")
     public List<ChapterItem> catalog(@PathVariable Long id) {

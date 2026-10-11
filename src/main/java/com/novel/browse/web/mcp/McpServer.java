@@ -259,7 +259,7 @@ public class McpServer {
         }
         Long categoryId = args.hasNonNull("categoryId") ? args.get("categoryId").asLong() : null;
         Novel novel = adminService.upload(data, fileName, categoryId, text(args, "categoryName"),
-                text(args, "status"), text(args, "tags"));
+                text(args, "status"), text(args, "tags"), text(args, "language"), text(args, "versionGroup"));
         return toNode(NovelSummary.of(novel));
     }
 
@@ -270,7 +270,8 @@ public class McpServer {
         }
         Long categoryId = args.hasNonNull("categoryId") ? args.get("categoryId").asLong() : null;
         Novel novel = adminService.updateNovel(id, text(args, "title"), text(args, "author"),
-                text(args, "description"), text(args, "status"), text(args, "tags"), categoryId);
+                text(args, "description"), text(args, "status"), text(args, "tags"), categoryId,
+                text(args, "language"));
         return toNode(NovelSummary.of(novel));
     }
 
@@ -336,6 +337,8 @@ public class McpServer {
         properties.set("categoryName", stringProperty(messages, "mcp.schema.upload.categoryName"));
         properties.set("status", stringProperty(messages, "mcp.schema.upload.status"));
         properties.set("tags", stringProperty(messages, "mcp.schema.upload.tags"));
+        properties.set("language", stringProperty(messages, "mcp.schema.upload.language"));
+        properties.set("versionGroup", stringProperty(messages, "mcp.schema.upload.versionGroup"));
         return schema(properties, List.of("fileName", "contentBase64"));
     }
 
@@ -347,6 +350,7 @@ public class McpServer {
         properties.set("description", stringProperty(messages, "mcp.schema.update.description"));
         properties.set("status", stringProperty(messages, "mcp.schema.update.status"));
         properties.set("tags", stringProperty(messages, "mcp.schema.update.tags"));
+        properties.set("language", stringProperty(messages, "mcp.schema.update.language"));
         properties.set("categoryId", integerProperty(messages, "mcp.schema.update.categoryId"));
         return schema(properties, List.of("id"));
     }

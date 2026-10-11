@@ -13,7 +13,7 @@ import java.util.List;
  */
 public record NovelSummary(Long id, String title, String author, String description,
                            Long categoryId, String categoryName, String coverColor, String coverMark,
-                           String coverUrl, String status, String statusText, List<String> tags,
+                           String coverUrl, String status, String statusText, List<String> tags, String language,
                            Double rating, Integer ratingCount, Integer likeCount, Long viewCount, Long wordCount,
                            Integer chapterCount, LocalDateTime updatedAt) implements Serializable {
 
@@ -34,6 +34,7 @@ public record NovelSummary(Long id, String title, String author, String descript
                 novel.getStatus(),
                 novel.getStatusText(),
                 List.of(novel.getTagList()),
+                novel.getLanguage(),
                 novel.getRating(),
                 novel.getRatingCount(),
                 novel.getLikeCount(),

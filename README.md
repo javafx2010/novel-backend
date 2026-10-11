@@ -94,18 +94,19 @@ cp deploy.conf.example deploy.conf   # 可选：改端口 / JVM 参数 / 分支
 | GET | `/home` | 首页聚合：分类、精选、热门、最近更新、完本佳作 |
 | GET | `/categories` | 全部分类 |
 | GET | `/categories/{id}` | 分类详情 |
-| GET | `/categories/{id}/novels?sort=hot\|update&page=0&size=12` | 分类书库（分页） |
-| GET | `/novels?categoryId=&sort=&page=&size=` | 书籍列表，可按分类筛选 |
-| GET | `/rank?type=hot\|rating&page=0&size=20` | 排行榜 |
-| GET | `/search?q=关键词&page=0&size=12` | 按书名 / 作者 / 标签检索 |
+| GET | `/categories/{id}/novels?sort=hot\|update&language=&page=0&size=12` | 分类书库（分页，可按语言筛选） |
+| GET | `/novels?categoryId=&sort=&language=&page=&size=` | 书籍列表，可按分类、语言筛选 |
+| GET | `/rank?type=hot\|rating&language=&page=0&size=20` | 排行榜 |
+| GET | `/search?q=关键词&language=&page=0&size=12` | 按书名 / 作者 / 标签检索（可按语言） |
 | GET | `/novels/{id}?chapterPreview=10` | 书籍详情 + 首/末章节 + 章节预览 + 同类推荐 |
+| GET | `/novels/{id}/versions` | 同一作品的全部语言版本 |
 | GET | `/novels/{id}/chapters` | 全部章节目录 |
 | GET | `/novels/{id}/chapter-page?page=0&size=50` | 分页章节目录 |
 | GET | `/novels/{id}/chapters/{no}` | 按章节号阅读正文 |
 | GET | `/novels/chapters/{chapterId}` | 按章节 id 阅读正文 |
 | GET | `/cache` | RocksDB 缓存统计 |
 | DELETE | `/cache/{name}` | 清空指定缓存 |
-| POST | `/admin/novels`（multipart：`file`、`categoryId`，可选 `status`、`tags`） | 上传 EPUB，自动解析入库 |
+| POST | `/admin/novels`（multipart：`file`、`categoryId`，可选 `status`、`tags`、`language`、`versionGroup`） | 上传 EPUB，自动解析入库 |
 | GET | `/admin/novels` | 后台书目列表（按更新时间倒序） |
 | DELETE | `/admin/novels/{id}` | 删除书目及其章节 |
 
@@ -156,15 +157,36 @@ app:
     supported-locales: [ 'en', 'zh_CN' ]
 ```
 
+## 图书的多语言版本
+
+同一部作品可以有多个语言版本，落到 `nb_novel.language` 与 `nb_novel.version_group` 两个字段：
+
+- 上传时可传 `language`（`en` / `zh_CN`…）；留空取 EPUB 的 `dc:language`，再取 `app.i18n.default-locale`（默认 `en`）
+- 判重按「书名 + 作者 + 语言」：同语言再传一次是覆盖，**不同语言会新建一条**，两者共享同一个 `version_group`
+- `GET /novels/{id}/versions` 返回同一作品的全部版本（含自身，按语言升序），前端据此做「切到中文版 / English」
+- 书籍列表、检索、排行榜、分类书库都支持 `?language=` 只看某个语言；`NovelSummary` 带 `language` 字段
+- MCP：`upload_epub` 支持 `language` / `versionGroup`，`update_novel` 支持 `language`
+- 历史数据没有 `version_group` 时视为独立作品；再次上传该书的其他语言会自动补上分组
+
+```bash
+curl -X POST -F "file=@sword.epub"    -F "language=zh_CN" http://localhost:8080/admin/novels
+curl -X POST -F "file=@sword-en.epub" -F "language=en"    http://localhost:8080/admin/novels
+
+curl http://localhost:8080/novels/7/versions
+# [ {"id":12,"language":"en",...}, {"id":7,"language":"zh_CN",...} ]
+
+curl "http://localhost:8080/novels?language=zh_CN"
+```
+
 ## 后台管理：EPUB 上传
 
 上传 EPUB 后自动解析并入库，无需手工录入章节：
 
 - **分类 ↔ 磁盘子目录一一对应**：上传时按分类名建子目录，原文件落到 `app.upload.dir/<分类名>/<内容哈希前8位>-<原名>.epub`（默认 `./data/epub`，部署时为 `$APP_ROOT/data/epub`）
-- 去重与覆盖：同一文件（内容 SHA-256 相同）重复上传返回 400；**书名 + 作者相同的书再次导入则覆盖原条目**（章节、简介、封面替换，保留 id 与点击数，删除上一版的文件）；**服务启动时扫描该目录**，未导入的 EPUB 自动入库（已导入的跳过）
+- 去重与覆盖：同一文件（内容 SHA-256 相同）重复上传返回 400；**书名 + 作者 + 语言相同的书再次导入则覆盖原条目**（章节、简介、封面替换，保留 id 与点击数，删除上一版的文件）；**服务启动时扫描该目录**，未导入的 EPUB 自动入库（已导入的跳过）
 - 启动时同步双向映射：子目录名 → 自动创建同名分类（sortNo=999 排最后）；已有分类 → 补齐缺失的子目录。直接放在根目录的 EPUB 归入 `app.upload.default-category-name`（默认 `Imported`）
 - 解析：读取 zip → `META-INF/container.xml` 定位 OPF → 按 `spine` 顺序抽取正文章节
-- 元数据取自 OPF：`dc:title`、`dc:creator`、`dc:description`、`dc:subject`（作为标签）
+- 元数据取自 OPF：`dc:title`、`dc:creator`、`dc:description`、`dc:subject`（作为标签）、`dc:language`（作为书籍语言）
 - 一个 spine 文档对应一章；单文档内含多个 `h1/h2` 且正文较长时，按标题再切分
 - 入库时在同一事务内写入章节数与字数，并让首页等受影响的缓存失效
 - 扫描导入的书籍归入 `app.upload.default-category-name`（默认 `Imported`，不存在时自动创建）；删除书目会同时删除磁盘上的 EPUB 原文件
@@ -290,8 +312,8 @@ GET  /mcp    SSE 心跳流    DELETE /mcp  结束会话（204）
 
 | 工具 | 必填 | 可选 | 说明 |
 | --- | --- | --- | --- |
-| `upload_epub` | `fileName`、`contentBase64` | `categoryId`、`categoryName`、`status`、`tags` | 导入 EPUB：解析章节 + 提取封面 + 落盘，内容哈希重复会拒绝 |
-| `update_novel` | `id` | `title`、`author`、`description`、`status`、`tags`、`categoryId` | 更新书目元数据，只改传入字段，并失效相关缓存 |
+| `upload_epub` | `fileName`、`contentBase64` | `categoryId`、`categoryName`、`status`、`tags`、`language`、`versionGroup` | 导入 EPUB：解析章节 + 提取封面 + 落盘，内容哈希重复会拒绝 |
+| `update_novel` | `id` | `title`、`author`、`description`、`status`、`tags`、`language`、`categoryId` | 更新书目元数据，只改传入字段，并失效相关缓存 |
 | `list_categories` | — | — | 查分类 id（上传前用） |
 | `list_novels` | — | `limit`（1-100，默认 20） | 查书目 id（更新前用） |
 

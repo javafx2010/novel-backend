@@ -2,6 +2,7 @@ package com.novel.browse.service;
 
 import com.novel.browse.domain.Category;
 import com.novel.browse.domain.Novel;
+import com.novel.browse.i18n.I18nSettings;
 import com.novel.browse.repository.CategoryRepository;
 import com.novel.browse.repository.ChapterRepository;
 import com.novel.browse.repository.NovelRepository;
@@ -13,9 +14,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -44,7 +48,8 @@ class AdminServiceTest {
         chapterRepository = mock(ChapterRepository.class);
         categoryRepository = mock(CategoryRepository.class);
         adminService = new AdminService(epubParser, epubStorage, coverStorage, mock(NovelService.class),
-                novelRepository, chapterRepository, categoryRepository, "Imported");
+                novelRepository, chapterRepository, categoryRepository,
+                new I18nSettings(Locale.ENGLISH, List.of(Locale.ENGLISH, Locale.SIMPLIFIED_CHINESE)), "Imported");
 
         when(epubStorage.sha256(any(byte[].class))).thenReturn("hash-2");
         when(novelRepository.existsBySourceHash(anyString())).thenReturn(false);
@@ -59,24 +64,27 @@ class AdminServiceTest {
         existing.setId(42L);
         existing.setTitle("The Nine Rungs of Frost");
         existing.setAuthor("Yulan Vey");
+        existing.setLanguage("zh_CN");
+        existing.setVersionGroup("group-1");
         existing.setViewCount(17L);
         existing.setRating(4.5);
         existing.setSourceFile("Fantasy/hash-1-old.epub");
         existing.setCoverImage("old-cover.jpg");
 
         when(epubParser.parse(any(byte[].class), anyString()))
-                .thenReturn(book("The Nine Rungs of Frost", "Yulan Vey", "New edition", "Chapter One",
+                .thenReturn(book("The Nine Rungs of Frost", "Yulan Vey", "New edition", "zh-CN", "Chapter One",
                         new byte[]{9, 9, 9}));
-        when(novelRepository.findFirstByTitleIgnoreCaseAndAuthorIgnoreCase("The Nine Rungs of Frost", "Yulan Vey"))
-                .thenReturn(Optional.of(existing));
+        when(novelRepository.findFirstByTitleIgnoreCaseAndAuthorIgnoreCaseAndLanguageIgnoreCase(
+                "The Nine Rungs of Frost", "Yulan Vey", "zh_CN")).thenReturn(Optional.of(existing));
         when(coverStorage.save(any(byte[].class), anyString(), anyString())).thenReturn("new-cover.jpg");
 
-        Novel saved = adminService.upload(new byte[]{1, 2, 3}, "book.epub", 1L, null, null, null);
+        Novel saved = adminService.upload(new byte[]{1, 2, 3}, "book.epub", 1L, null, null, null, null, null);
 
         // same row, no copy
         assertSame(existing, saved);
         assertEquals(42L, saved.getId());
         assertEquals("New edition", saved.getDescription());
+        assertEquals("zh_CN", saved.getLanguage());
         // chapters are replaced, not appended
         verify(chapterRepository).deleteByNovelId(42L);
         verify(chapterRepository).saveAll(any(List.class));
@@ -97,14 +105,15 @@ class AdminServiceTest {
         existing.setId(7L);
         existing.setTitle("Coverless Re-upload");
         existing.setAuthor("Someone");
+        existing.setLanguage("en");
         existing.setCoverImage("kept-cover.jpg");
 
         when(epubParser.parse(any(byte[].class), anyString()))
-                .thenReturn(book("Coverless Re-upload", "Someone", "desc", "Chapter One"));
-        when(novelRepository.findFirstByTitleIgnoreCaseAndAuthorIgnoreCase("Coverless Re-upload", "Someone"))
-                .thenReturn(Optional.of(existing));
+                .thenReturn(book("Coverless Re-upload", "Someone", "desc", "en", "Chapter One"));
+        when(novelRepository.findFirstByTitleIgnoreCaseAndAuthorIgnoreCaseAndLanguageIgnoreCase(
+                "Coverless Re-upload", "Someone", "en")).thenReturn(Optional.of(existing));
 
-        Novel saved = adminService.upload(new byte[]{1, 2, 3}, "book.epub", 1L, null, null, null);
+        Novel saved = adminService.upload(new byte[]{1, 2, 3}, "book.epub", 1L, null, null, null, null, null);
 
         assertEquals("kept-cover.jpg", saved.getCoverImage());
         verify(coverStorage, never()).delete(anyString());
@@ -112,28 +121,79 @@ class AdminServiceTest {
 
     @Test
     void uploadCreatesANewBookWhenTheTitleIsUnknown() {
-        when(epubParser.parse(any(byte[].class), anyString())).thenReturn(book("A Brand New Book", "Someone", "d", "c"));
-        when(novelRepository.findFirstByTitleIgnoreCaseAndAuthorIgnoreCase(anyString(), anyString()))
-                .thenReturn(Optional.empty());
+        when(epubParser.parse(any(byte[].class), anyString()))
+                .thenReturn(book("A Brand New Book", "Someone", "d", "en", "c"));
 
-        Novel saved = adminService.upload(new byte[]{1, 2, 3}, "book.epub", 1L, null, null, null);
+        Novel saved = adminService.upload(new byte[]{1, 2, 3}, "book.epub", 1L, null, null, null, null, null);
 
         assertEquals("A Brand New Book", saved.getTitle());
         assertEquals(0L, saved.getViewCount());
         assertEquals(1, saved.getChapterCount());
+        assertEquals("en", saved.getLanguage());
+        assertNotNull(saved.getVersionGroup());
         assertEquals("Fantasy/hash-2-book.epub", saved.getSourceFile());
         verify(chapterRepository, never()).deleteByNovelId(anyLong());
         verify(chapterRepository).saveAll(any(List.class));
     }
 
-    private static EpubBook book(String title, String author, String description, String chapterTitle) {
-        return book(title, author, description, chapterTitle, null);
+    @Test
+    void uploadTakesTheLanguageFromTheEpubWhenNoneIsRequested() {
+        when(epubParser.parse(any(byte[].class), anyString()))
+                .thenReturn(book("剑痕录", "佚名", "d", "zh-CN", "第一章"));
+
+        Novel saved = adminService.upload(new byte[]{1, 2, 3}, "book.epub", 1L, null, null, null, null, null);
+
+        assertEquals("zh_CN", saved.getLanguage());
+        verify(novelRepository)
+                .findFirstByTitleIgnoreCaseAndAuthorIgnoreCaseAndLanguageIgnoreCase("剑痕录", "佚名", "zh_CN");
     }
 
-    private static EpubBook book(String title, String author, String description, String chapterTitle,
-                                 byte[] coverImage) {
+    @Test
+    void uploadCreatesASeparateEditionForAnotherLanguageOfTheSameWork() {
+        Novel chinese = new Novel();
+        chinese.setId(11L);
+        chinese.setTitle("剑痕录");
+        chinese.setAuthor("佚名");
+        chinese.setLanguage("zh_CN");
+        chinese.setVersionGroup("group-1");
+
+        when(epubParser.parse(any(byte[].class), anyString()))
+                .thenReturn(book("剑痕录", "佚名", "d", "en", "Chapter One"));
+        when(novelRepository.findFirstByTitleIgnoreCaseAndAuthorIgnoreCaseAndLanguageIgnoreCase("剑痕录", "佚名", "en"))
+                .thenReturn(Optional.empty());
+        when(novelRepository.findFirstByTitleIgnoreCaseAndAuthorIgnoreCase("剑痕录", "佚名"))
+                .thenReturn(Optional.of(chinese));
+
+        Novel english = adminService.upload(new byte[]{1, 2, 3}, "book.epub", 1L, null, null, null, "en", null);
+
+        // a second edition, not an overwrite of the Chinese one
+        assertNotSame(chinese, english);
+        assertEquals("en", english.getLanguage());
+        // both editions belong to the same work
+        assertEquals("group-1", english.getVersionGroup());
+        verify(chapterRepository, never()).deleteByNovelId(anyLong());
+    }
+
+    @Test
+    void uploadStartsAVersionGroupForTheFirstEditionOfAWork() {
+        when(epubParser.parse(any(byte[].class), anyString()))
+                .thenReturn(book("A Brand New Book", "Someone", "d", "zh", "第一章"));
+
+        Novel saved = adminService.upload(new byte[]{1, 2, 3}, "book.epub", 1L, null, null, null, null, null);
+
+        assertEquals("zh_CN", saved.getLanguage());
+        assertNotNull(saved.getVersionGroup());
+    }
+
+    private static EpubBook book(String title, String author, String description, String language,
+                                 String chapterTitle) {
+        return book(title, author, description, language, chapterTitle, null);
+    }
+
+    private static EpubBook book(String title, String author, String description, String language,
+                                 String chapterTitle, byte[] coverImage) {
         String mediaType = coverImage == null ? null : "image/jpeg";
-        return new EpubBook(title, author, description, "zh-CN", List.of(),
+        return new EpubBook(title, author, description, language, List.of(),
                 List.of(new EpubChapter(chapterTitle, "Some chapter text.")), coverImage, mediaType);
     }
 }
