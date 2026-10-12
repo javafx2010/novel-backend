@@ -95,6 +95,27 @@ app:
     ensure-category-dirs: true
     # 扫描导入时的连载状态：FINISHED / ONGOING
     default-status: 'FINISHED'
+  tts:
+    # 听书：服务器上安装 pip install edge-tts 后，后端调用其命令行合成 MP3 返回给前端
+    # false 时 /tts 接口完全不注册（未安装 edge-tts 的环境请置为 false）
+    enabled: true
+    # 解释器路径；装到虚拟环境时填 venv 里的 python，例如 /opt/venvs/tts/bin/python3
+    python: 'python3'
+    # 合成结果的磁盘缓存目录（按 音色+语速+语调+文本 指纹命名），重复朗读不再请求上游
+    cache-dir: './data/tts'
+    # 单次合成的超时时间（秒）
+    timeout-seconds: 30
+    # 单段文本长度上限，超长直接拒绝
+    max-text-length: 1200
+    # 并发合成上限，超出直接拒绝
+    max-concurrent: 3
+    # 缓存文件上限，超过后淘汰最早的
+    max-cache-files: 3000
+    # 请求不带 voice 时使用的默认音色
+    default-voice: 'zh-CN-XiaoxiaoNeural'
+    # 允许的音色白名单；留空表示接受所有微软 Neural 音色
+    voices: [ 'zh-CN-XiaoxiaoNeural', 'zh-CN-XiaoyiNeural', 'zh-CN-YunxiNeural', 'zh-CN-YunyangNeural',
+              'en-US-AvaNeural', 'en-US-JennyNeural', 'en-US-AndrewNeural', 'en-GB-SoniaNeural' ]
 
 # RocksDB 缓存
 rocksdb:
