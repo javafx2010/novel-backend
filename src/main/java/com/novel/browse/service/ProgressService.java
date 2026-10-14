@@ -30,10 +30,12 @@ public class ProgressService {
     }
 
     /**
-     * Saves (or updates) the chapter a reader is on
+     * Saves (or updates) where a reader stopped: the chapter number and, when supplied, the part of that chapter
+     * (0-100). Omitting {@code chapterPercent} keeps the value already stored, so an older client that only
+     * reports the chapter does not wipe it.
      */
     @Transactional
-    public ProgressVo save(User user, Long novelId, Integer chapterNo) {
+    public ProgressVo save(User user, Long novelId, Integer chapterNo, Integer chapterPercent) {
         Novel novel = novelRepository.findById(novelId)
                 .orElseThrow(() -> new NotFoundException("error.novel.notFoundId", novelId));
         if (chapterNo == null || chapterNo < 1) {
@@ -41,6 +43,9 @@ public class ProgressService {
         }
         if (novel.getChapterCount() != null && novel.getChapterCount() > 0 && chapterNo > novel.getChapterCount()) {
             throw new BadRequestException("error.progress.chapterNoExceeds", novel.getChapterCount());
+        }
+        if (chapterPercent != null && (chapterPercent < 0 || chapterPercent > 100)) {
+            throw new BadRequestException("error.progress.chapterPercentRange");
         }
         ReadingProgress progress = progressRepository.findByUserIdAndNovelId(user.getId(), novelId)
                 .orElseGet(ReadingProgress::new);
@@ -51,6 +56,9 @@ public class ProgressService {
             progress.setCreatedAt(now);
         }
         progress.setChapterNo(chapterNo);
+        if (chapterPercent != null) {
+            progress.setChapterPercent(chapterPercent);
+        }
         progress.setUpdatedAt(now);
         return ProgressVo.of(progressRepository.save(progress));
     }

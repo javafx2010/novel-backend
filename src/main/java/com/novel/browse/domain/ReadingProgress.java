@@ -11,13 +11,14 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * How far a reader got in a book: the last chapter read; the pair (user, novel) is unique
+ * How far a reader got in a book: the last chapter read and how much of it; the pair (user, novel) is unique
  */
 @Entity
 @Table(name = "nb_read_progress",
@@ -45,6 +46,19 @@ public class ReadingProgress implements Serializable {
      */
     @Column(name = "chapter_no", nullable = false)
     private Integer chapterNo = 1;
+
+    /**
+     * How much of that chapter the reader went through, 0-100; the whole book percentage is derived from the
+     * two (see {@code ProgressVo}), so a reader can resume in the middle of a long chapter.
+     * <p>
+     * The column default matters for upgrades: {@code ddl-auto=update} issues
+     * {@code alter table nb_read_progress add column chapter_percent int not null}, which fails on H2 as soon
+     * as the table already holds rows.
+     * </p>
+     */
+    @ColumnDefault("0")
+    @Column(name = "chapter_percent", nullable = false)
+    private Integer chapterPercent = 0;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
@@ -82,6 +96,14 @@ public class ReadingProgress implements Serializable {
 
     public void setChapterNo(Integer chapterNo) {
         this.chapterNo = chapterNo;
+    }
+
+    public Integer getChapterPercent() {
+        return chapterPercent;
+    }
+
+    public void setChapterPercent(Integer chapterPercent) {
+        this.chapterPercent = chapterPercent;
     }
 
     public LocalDateTime getCreatedAt() {

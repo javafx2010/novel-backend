@@ -52,7 +52,7 @@ public class ProgressController {
         if (body == null || body.chapterNo() == null) {
             throw new BadRequestException("error.progress.chapterNoRequired");
         }
-        return progressService.save(user, novelId, body.chapterNo());
+        return progressService.save(user, novelId, body.chapterNo(), body.chapterPercent());
     }
 
     @DeleteMapping("/{novelId}")
@@ -62,8 +62,9 @@ public class ProgressController {
     }
 
     /**
-     * Update request: the chapter the reader stopped at
+     * Update request: the chapter the reader stopped at and, optionally, how much of it was read (0-100).
+     * A missing {@code chapterPercent} leaves the stored one untouched.
      */
-    public record ProgressRequest(Integer chapterNo) {
+    public record ProgressRequest(Integer chapterNo, Integer chapterPercent) {
     }
 }

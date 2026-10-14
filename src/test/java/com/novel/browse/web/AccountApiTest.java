@@ -247,12 +247,29 @@ class AccountApiTest {
         String cookie = login("progress_user", "progress@example.com");
         Long novelId = newNovel("在读的书");
 
-        Response saved = call("PUT", "/me/progress/" + novelId, "{\"chapterNo\":2}", cookie);
+        Response saved = call("PUT", "/me/progress/" + novelId, "{\"chapterNo\":2,\"chapterPercent\":40}", cookie);
         assertEquals(200, saved.status());
         assertEquals(2, saved.body().path("chapterNo").asInt());
+        assertEquals(40, saved.body().path("chapterPercent").asInt());
+        // 5 chapters in total: one finished plus 40% of the second = (1 + 0.4) / 5 = 28%
+        assertEquals(28, saved.body().path("percent").asInt());
 
-        assertEquals(2, call("GET", "/me/progress/" + novelId, null, cookie)
-                .body().path("chapterNo").asInt());
+        Response fetched = call("GET", "/me/progress/" + novelId, null, cookie);
+        assertEquals(2, fetched.body().path("chapterNo").asInt());
+        assertEquals(40, fetched.body().path("chapterPercent").asInt());
+        assertEquals(28, fetched.body().path("percent").asInt());
+
+        // a client that only reports the chapter keeps the stored percentage
+        Response chapterOnly = call("PUT", "/me/progress/" + novelId, "{\"chapterNo\":3}", cookie);
+        assertEquals(3, chapterOnly.body().path("chapterNo").asInt());
+        assertEquals(40, chapterOnly.body().path("chapterPercent").asInt());
+        // two chapters finished plus 40% of the third = (2 + 0.4) / 5 = 48%
+        assertEquals(48, chapterOnly.body().path("percent").asInt());
+
+        assertEquals(400, call("PUT", "/me/progress/" + novelId, "{\"chapterNo\":1,\"chapterPercent\":101}", cookie)
+                .status());
+        assertEquals(400, call("PUT", "/me/progress/" + novelId, "{\"chapterNo\":1,\"chapterPercent\":-1}", cookie)
+                .status());
 
         Response tooFar = call("PUT", "/me/progress/" + novelId, "{\"chapterNo\":99}", cookie);
         assertEquals(400, tooFar.status());

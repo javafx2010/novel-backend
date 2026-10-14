@@ -286,10 +286,13 @@ curl -b cookies.txt -X POST http://localhost:8080/auth/logout
 |------------|----------------------------------------------------------------------------------------------------------------|
 | 点赞       | `GET /me/likes`（分页）、`GET/POST/DELETE /me/likes/{novelId}`（POST 幂等，一人只记一次）                      |
 | 书架收藏   | `GET /me/favorites`（分页）、`GET/POST/DELETE /me/favorites/{novelId}`（POST 幂等）                            |
-| 阅读进度   | `GET /me/progress`（分页）、`GET/PUT/DELETE /me/progress/{novelId}`（PUT 传 `{"chapterNo":2}`）                |
+| 阅读进度   | `GET /me/progress`（分页）、`GET/PUT/DELETE /me/progress/{novelId}`（PUT 传 `{"chapterNo":2,"chapterPercent":40}`） |
 | 评论与评分 | `GET /novels/{id}/reviews`（公开分页）、`GET/PUT/DELETE /me/reviews/{novelId}`（`{"rating":5,"content":"…"}`） |
 
 - cookie 里只有随机 token，服务端 `nb_user_session` 记录归属与过期时间：登出即删除、可在服务端强制失效；会话过期返回 401
+- 阅读进度记到「第几章 + 该章读到百分之多少」（`chapterNo` 1 起、`chapterPercent` 0-100），响应里的 `percent` 是全书百分比
+  （`((chapterNo - 1) + chapterPercent / 100) / chapterCount`，四舍五入，总章节数未知时为 `null`），前端据此把读者送回上次的位置；
+  不传 `chapterPercent` 表示不改，老客户端只报章号也不会把它清零
 - 点赞回写 `nb_novel.like_count`；同一读者重复点赞只记一次，取消后可再点
 - 密码用 BCrypt 存储，接口永不返回密码或哈希；用户名/邮箱唯一（忽略大小写），密码 8-64 位
 - 登录错误统一 401 `Email or password is incorrect`（不区分账号是否存在，避免枚举）
