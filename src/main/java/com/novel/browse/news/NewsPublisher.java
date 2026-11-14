@@ -64,8 +64,10 @@ public class NewsPublisher {
                 .map(chapter -> chapter.getChapterNo() + 1)
                 .orElse(1);
         int added = 0;
+        int skipped = 0;
         for (PendingArticle article : articles) {
             if (chapterRepository.existsByNovelIdAndSourceUrl(novel.getId(), article.url())) {
+                skipped++;
                 continue;
             }
             Chapter chapter = new Chapter();
@@ -83,7 +85,9 @@ public class NewsPublisher {
             refreshCounts(novel);
             novel.setUpdatedAt(LocalDateTime.now());
             novelRepository.save(novel);
-            log.info("News published: novel={} chaptersAdded={}", title, added);
+            log.info("News published: novel={} chaptersAdded={} duplicatesSkipped={}", title, added, skipped);
+        } else {
+            log.info("News published: novel={} nothing new, all {} article(s) already stored", title, skipped);
         }
         return novel;
     }

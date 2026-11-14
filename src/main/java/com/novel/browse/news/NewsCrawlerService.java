@@ -10,6 +10,8 @@ import org.jsoup.parser.Parser;
 import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -23,6 +25,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Crawls the configured US news sources (English), translates every article into Chinese
@@ -46,6 +49,27 @@ public class NewsCrawlerService {
         this.publisher = publisher;
     }
 
+    /**
+     * Runs the first crawl right after the application is fully started, so the news book exists
+     * without waiting for the next cron tick. The crawl is network-bound and therefore runs on a
+     * separate thread to keep the startup path free.
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void onStartup() {
+        if (!properties.isEnabled()) {
+            log.info("News crawler disabled, skipping the startup crawl");
+            return;
+        }
+        log.info("Application started, launching the startup news crawl on a separate thread");
+        CompletableFuture.runAsync(() -> {
+            try {
+                run();
+            } catch (Exception e) {
+                log.error("Startup news crawl failed", e);
+            }
+        });
+    }
+
     /** Scheduled crawl, see {@code app.news.cron} (hourly by default) */
     @Scheduled(cron = "${app.news.cron:0 0 * * * *}")
     public void scheduledRun() {
@@ -64,6 +88,8 @@ public class NewsCrawlerService {
         if (!properties.isEnabled()) {
             return Map.of("enabled", false);
         }
+        log.info("News crawl started: {} source(s), retentionDays={}", properties.getSources().size(),
+                properties.getRetentionDays());
         Map<String, Object> summary = new LinkedHashMap<>();
         List<PendingArticle> accepted = new ArrayList<>();
         Map<String, Object> perSource = new LinkedHashMap<>();
@@ -92,6 +118,8 @@ public class NewsCrawlerService {
                 }
                 stats.put("accepted", fetched);
                 stats.put("emptyBody", empty);
+                log.info("News source {}: listed={}, accepted={}, emptyBody={}", source.getName(),
+                        items.size(), fetched, empty);
             } catch (Exception e) {
                 log.warn("News source {} failed: {}", source.getName(), e.getMessage());
                 stats.put("error", e.getMessage());
@@ -128,6 +156,10 @@ public class NewsCrawlerService {
         summary.put("publishedBook", book == null ? null : book.getTitle());
         summary.put("chapterCount", book == null ? 0 : book.getChapterCount());
         summary.put("purgedBooks", purged);
+        log.info("News crawl finished: accepted={}, translated={}, untranslatedFallback={}, book={}, chapters={}, purgedBooks={}",
+                accepted.size(), translated, fellBack,
+                book == null ? "none" : book.getTitle(),
+                book == null ? 0 : book.getChapterCount(), purged);
         return summary;
     }
 
@@ -234,6 +266,8 @@ public class NewsCrawlerService {
     private PendingArticle translate(PendingArticle article) throws Exception {
         String title = translator.translate(article.title());
         String body = translator.translate(article.body());
+        log.info("Article translated: {} chars(en) -> {} chars(zh), url={}",
+                article.body().length(), body.length(), article.url());
         StringBuilder content = new StringBuilder();
         content.append("来源：").append(article.sourceName()).append('\n');
         content.append("原文链接：").append(article.url()).append('\n');
