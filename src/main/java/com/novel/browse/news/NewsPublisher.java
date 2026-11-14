@@ -28,6 +28,12 @@ public class NewsPublisher {
 
     private static final Logger log = LoggerFactory.getLogger(NewsPublisher.class);
 
+    /**
+     * Bundled default cover of the daily news books (ComfyUI generated), served from
+     * {@code classpath:/static/covers/} under the {@code /covers/} URL prefix.
+     */
+    public static final String DEFAULT_COVER = "news-default.png";
+
     private final NewsProperties properties;
     private final NovelService novelService;
     private final NovelRepository novelRepository;
@@ -65,6 +71,12 @@ public class NewsPublisher {
                 .orElse(1);
         int added = 0;
         int skipped = 0;
+        if (novel.getCoverImage() == null || novel.getCoverImage().isBlank()) {
+            // Books created before the bundled cover existed get it backfilled on the next run
+            novel.setCoverImage(DEFAULT_COVER);
+            novel.setUpdatedAt(LocalDateTime.now());
+            novelRepository.save(novel);
+        }
         for (PendingArticle article : articles) {
             if (chapterRepository.existsByNovelIdAndSourceUrl(novel.getId(), article.url())) {
                 skipped++;
@@ -147,6 +159,7 @@ public class NewsPublisher {
         novel.setLanguage(properties.getLanguage());
         novel.setCoverColor("#2196F3");
         novel.setCoverMark("报");
+        novel.setCoverImage(DEFAULT_COVER);
         novel.setChapterCount(0);
         novel.setWordCount(0L);
         return novelRepository.save(novel);
