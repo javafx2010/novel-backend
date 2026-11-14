@@ -52,6 +52,10 @@ app:
     # HTTPS 站点设为 true（浏览器只通过 HTTPS 回传 cookie）；当前是 HTTP 部署，保持 false
     cookie-secure: false
     cookie-same-site: Lax
+  google:
+    # Google 登录：OAuth 2.0 客户端 ID（须与前端 VITE_GOOGLE_CLIENT_ID 一致，授权来源含站点域名）
+    # 留空时 POST /auth/google 一律返回 401（前端未配置 client-id 也不会显示 Google 登录按钮）
+    client-id: ''
   admin:
     # 后台管理接口（/admin/**）的简易鉴权令牌，请求头 X-Admin-Token
     # 留空表示不校验（仅适合本地与内网），生产环境请设置随机值
