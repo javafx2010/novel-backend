@@ -15,6 +15,11 @@ public interface ChapterRepository extends JpaRepository<Chapter, Long> {
 
     Optional<Chapter> findFirstByNovelIdOrderByChapterNoAsc(Long novelId);
 
+    Optional<Chapter> findFirstByNovelIdOrderByChapterNoDesc(Long novelId);
+
+    /** Crawler deduplication: whether a chapter with this source URL already exists in the novel */
+    boolean existsByNovelIdAndSourceUrl(Long novelId, String sourceUrl);
+
     Optional<Chapter> findFirstByNovelIdAndChapterNoGreaterThanOrderByChapterNoAsc(Long novelId, Integer chapterNo);
 
     Optional<Chapter> findFirstByNovelIdAndChapterNoLessThanOrderByChapterNoDesc(Long novelId, Integer chapterNo);

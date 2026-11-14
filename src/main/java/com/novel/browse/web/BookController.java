@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 
@@ -53,6 +54,18 @@ public class BookController {
     @GetMapping("/{id}/versions")
     public List<NovelSummary> versions(@PathVariable Long id) {
         return novelService.versions(id).stream().map(NovelSummary::of).toList();
+    }
+
+    /**
+     * Books updated after {@code since} (epoch milliseconds), newest first — client incremental sync.
+     * Without {@code since} the last 24 hours are returned.
+     */
+    @GetMapping("/updates")
+    public List<NovelSummary> updates(@RequestParam(required = false) Long since) {
+        LocalDateTime sinceTime = since == null
+                ? LocalDateTime.now().minusHours(24)
+                : LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(since), java.time.ZoneId.systemDefault());
+        return novelService.updatedSince(sinceTime).stream().map(NovelSummary::of).toList();
     }
 
     /** Full table of contents */

@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,4 +39,10 @@ public interface NovelRepository extends JpaRepository<Novel, Long>, JpaSpecific
 
     /** Editions of one language, newest update first */
     List<Novel> findAllByLanguageIgnoreCaseOrderByUpdatedAtDesc(String language);
+
+    /** Books changed after the given time, newest first (client incremental sync) */
+    List<Novel> findByUpdatedAtAfterOrderByUpdatedAtDesc(LocalDateTime since);
+
+    /** All daily news books of the crawler author, e.g. 《新闻日报 2026-11-15》 */
+    List<Novel> findByAuthorIgnoreCaseAndTitleStartingWithIgnoreCase(String author, String titlePrefix);
 }

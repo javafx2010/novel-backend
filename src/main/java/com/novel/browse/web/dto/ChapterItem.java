@@ -10,13 +10,13 @@ import java.time.LocalDateTime;
  * Chapter entry in the table of contents (without content).
  */
 public record ChapterItem(Long id, Integer no, String title, Integer wordCount,
-                          LocalDateTime createdAt) implements Serializable {
+                          LocalDateTime createdAt, LocalDateTime updatedAt) implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
 
     public static ChapterItem of(Chapter chapter) {
         return new ChapterItem(chapter.getId(), chapter.getChapterNo(), chapter.getTitle(),
-                chapter.getWordCount(), chapter.getCreatedAt());
+                chapter.getWordCount(), chapter.getCreatedAt(), chapter.getUpdatedAt());
     }
 }

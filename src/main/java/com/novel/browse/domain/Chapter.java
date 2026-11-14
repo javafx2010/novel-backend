@@ -41,6 +41,26 @@ public class Chapter implements Serializable {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    /**
+     * Last time the chapter was written (set on every insert/update through the lifecycle callbacks).
+     * Client apps compare it against {@code NovelSummary.updatedAt} to decide whether to re-fetch.
+     */
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    /**
+     * Absolute URL the chapter text came from (crawler imports); null for EPUB uploads.
+     * Used to skip already imported news items when the crawler runs again.
+     */
+    @Column(name = "source_url", length = 512)
+    private String sourceUrl;
+
+    @PrePersist
+    @PreUpdate
+    void stampUpdatedAt() {
+        updatedAt = LocalDateTime.now();
+    }
+
     public Long getId() {
         return id;
     }
@@ -95,5 +115,21 @@ public class Chapter implements Serializable {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    public String getSourceUrl() {
+        return sourceUrl;
+    }
+
+    public void setSourceUrl(String sourceUrl) {
+        this.sourceUrl = sourceUrl;
     }
 }

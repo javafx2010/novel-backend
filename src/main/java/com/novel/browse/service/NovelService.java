@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -127,6 +128,14 @@ public class NovelService {
      * @param description description in that language, applied when the category is created and updated
      *                    when a different one is supplied later; blank keeps the current text
      */
+    /**
+     * Books whose {@code updatedAt} lies after {@code since}, newest first.
+     * Clients poll this with the latest timestamp they saw to sync changed books.
+     */
+    public List<Novel> updatedSince(LocalDateTime since) {
+        return novelRepository.findByUpdatedAtAfterOrderByUpdatedAtDesc(since);
+    }
+
     @Transactional
     public Category findOrCreateCategory(String name, String language, String description) {
         String target = name == null || name.isBlank() ? DEFAULT_CATEGORY_NAME : name.trim();

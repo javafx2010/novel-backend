@@ -4,6 +4,7 @@ import com.novel.browse.domain.Chapter;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -11,7 +12,7 @@ import java.util.List;
  */
 public record ChapterDetail(Long id, Integer no, String title, Integer wordCount,
                             List<String> paragraphs, Long novelId, String novelTitle,
-                            Integer prevNo, Integer nextNo) implements Serializable {
+                            Integer prevNo, Integer nextNo, LocalDateTime updatedAt) implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
@@ -26,6 +27,7 @@ public record ChapterDetail(Long id, Integer no, String title, Integer wordCount
                 chapter.getNovel().getId(),
                 chapter.getNovel().getTitle(),
                 prevNo,
-                nextNo);
+                nextNo,
+                chapter.getUpdatedAt());
     }
 }
