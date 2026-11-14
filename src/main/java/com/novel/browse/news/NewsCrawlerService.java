@@ -227,14 +227,20 @@ public class NewsCrawlerService {
         return items;
     }
 
-    /** Fetches the article page and extracts title and body paragraphs */
+    /** Fetches the article page and extracts body paragraphs (TTS-friendly: links, ads and UI junk removed) */
     private String fetchArticle(Source source, NewsItem item) {
         try {
             Document page = Jsoup.connect(item.url())
                     .userAgent(properties.getUserAgent())
                     .timeout(properties.getTimeoutSeconds() * 1000)
                     .get();
-            page.select("script, style, nav, header, footer, aside, form").remove();
+            page.select("script, style, nav, header, footer, aside, form, button, iframe, svg, figure, figcaption")
+                    .remove();
+            // Ads, share bars, subscribe prompts, related-story teasers and such are noise for reading aloud
+            page.select("[class*=advert], [class*=promo], [class*=sponsor], [class*=share], [class*=subscribe], "
+                    + "[class*=newsletter], [class*=related], [class*=recommend], [class*=teaser]").remove();
+            // Link text itself ("click here", site names) is not readable content
+            page.select("a[href]").remove();
             List<String> paragraphs = new ArrayList<>();
             for (Element p : page.select(source.getArticleSelector())) {
                 // The selector may match a container: paragraph tags inside it win
@@ -257,10 +263,39 @@ public class NewsCrawlerService {
 
     private static void addParagraph(List<String> paragraphs, String text) {
         String cleaned = TextUtil.normalize(text);
-        if (!cleaned.isBlank()) {
-            paragraphs.add(cleaned);
+        if (cleaned.isBlank() || isUnreadableJunk(cleaned)) {
+            return;
         }
+        paragraphs.add(cleaned);
     }
+
+    /**
+     * Whether the line is noise for text-to-speech: raw URLs, e-mail addresses, subscription and
+     * share prompts, credits, copyright boilerplate and fragments too short to be a sentence.
+     */
+    private static boolean isUnreadableJunk(String line) {
+        String lower = line.toLowerCase();
+        if (lower.contains("http://") || lower.contains("https://") || lower.contains("www.")
+                || lower.matches(".*[\\w.+-]+@[\\w-]+\\.[\\w.]+.*")) {
+            return true;
+        }
+        for (String phrase : UNREADABLE_PHRASES) {
+            if (lower.contains(phrase)) {
+                return true;
+            }
+        }
+        return line.length() < 15;
+    }
+
+    /** Lowercase fragments marking boilerplate not worth reading aloud */
+    private static final String[] UNREADABLE_PHRASES = {
+            "advertisement", "advert", "read more", "continue reading", "share this", "share:",
+            "sign up", "subscribe", "newsletter", "follow us", "follow npr", "follow cnn",
+            "get our", "download our app", "listen now", "play episode", "all rights reserved",
+            "copyright", "photo by", "image:", "image credit", "credit:", "getty", "ap photo",
+            "support npr", "donate", "related:", "see also", "click here", "more from",
+            "this article originally", "correction:", "et updated", "terms of use", "privacy policy"
+    };
 
     /** Translates title and body; the body keeps the English title line for reference */
     private PendingArticle translate(PendingArticle article) throws Exception {
@@ -269,8 +304,8 @@ public class NewsCrawlerService {
         log.info("Article translated: {} chars(en) -> {} chars(zh), url={}",
                 article.body().length(), body.length(), article.url());
         StringBuilder content = new StringBuilder();
+        // TTS-friendly header: no raw URLs (the link lives in Chapter.sourceUrl)
         content.append("来源：").append(article.sourceName()).append('\n');
-        content.append("原文链接：").append(article.url()).append('\n');
         if (article.publishedAt() != null) {
             content.append("发布时间：").append(article.publishedAt()
                     .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))).append('\n');
@@ -285,7 +320,6 @@ public class NewsCrawlerService {
         String body = article.body();
         StringBuilder content = new StringBuilder();
         content.append("来源：").append(article.sourceName()).append('\n');
-        content.append("原文链接：").append(article.url()).append('\n');
         content.append("（译文生成失败，以下为英文原文）\n\n").append(body);
         return new PendingArticle(article.title(), article.url(), article.sourceName(),
                 article.publishedAt(), content.toString());
