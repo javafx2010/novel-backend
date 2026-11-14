@@ -2,7 +2,6 @@ package com.novel.browse.web;
 
 import com.novel.browse.domain.User;
 import com.novel.browse.service.AuthService;
-import com.novel.browse.web.dto.GoogleLoginRequest;
 import com.novel.browse.web.dto.LoginRequest;
 import com.novel.browse.web.dto.RegisterRequest;
 import com.novel.browse.web.dto.UserView;
@@ -46,17 +45,6 @@ public class AuthController {
     @PostMapping("/login")
     public UserView login(@RequestBody LoginRequest body, HttpServletResponse response) {
         User user = authService.login(body.email(), body.password());
-        authService.writeSessionCookie(response, authService.issueSession(user));
-        return UserView.of(user);
-    }
-
-    /**
-     * Logs in with the Google ID Token (frontend Google Identity Services button);
-     * answers with the account and the session cookie, 401 when the token is missing or invalid
-     */
-    @PostMapping("/google")
-    public UserView google(@RequestBody GoogleLoginRequest body, HttpServletResponse response) {
-        User user = authService.googleLogin(body.credential());
         authService.writeSessionCookie(response, authService.issueSession(user));
         return UserView.of(user);
     }

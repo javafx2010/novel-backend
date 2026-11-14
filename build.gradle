@@ -38,9 +38,6 @@ dependencies {
     // 密码哈希（BCrypt），不引入 Spring Security 其余模块
     implementation 'org.springframework.security:spring-security-crypto'
 
-    // Google 登录：校验前端传来的 ID Token（GoogleIdTokenVerifier）
-    implementation 'com.google.api-client:google-api-client:2.8.0'
-
     runtimeOnly 'com.h2database:h2'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
