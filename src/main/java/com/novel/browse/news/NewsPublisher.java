@@ -120,6 +120,8 @@ public class NewsPublisher {
         if (!expired.isEmpty()) {
             log.info("Expired news books deleted: {} (cutoff {})", expired.size(), cutoff);
         }
+        // The news category itself disappears once the purge removed its last book
+        novelService.purgeEmptyCategories();
         return expired.size();
     }
 

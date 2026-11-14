@@ -136,6 +136,26 @@ public class NovelService {
         return novelRepository.findByUpdatedAtAfterOrderByUpdatedAtDesc(since);
     }
 
+    /**
+     * Deletes every category that no longer holds any book — e.g. the auto created news category
+     * once the retention purge removed the last daily issue, or after the last book of a category
+     * was deleted manually.
+     *
+     * @return how many categories were removed
+     */
+    @Transactional
+    @CacheEvict(cacheNames = CacheNames.HOME_LIST, allEntries = true)
+    public int purgeEmptyCategories() {
+        List<Category> empty = categoryRepository.findEmptyCategories();
+        if (empty.isEmpty()) {
+            return 0;
+        }
+        categoryRepository.deleteAll(empty);
+        List<String> names = empty.stream().map(Category::getName).toList();
+        log.info("Empty categories deleted: {}", names);
+        return empty.size();
+    }
+
     @Transactional
     public Category findOrCreateCategory(String name, String language, String description) {
         String target = name == null || name.isBlank() ? DEFAULT_CATEGORY_NAME : name.trim();

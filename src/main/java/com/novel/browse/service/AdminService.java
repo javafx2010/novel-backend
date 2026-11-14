@@ -222,6 +222,7 @@ public class AdminService {
         coverStorage.delete(novel.getCoverImage());
         log.info("Deleted novel: id={} title={} chapters={} sourceFile={}", id, novel.getTitle(), removed,
                 sourceFile == null ? "none" : sourceFile);
+        novelService.purgeEmptyCategories();
     }
 
     /**
