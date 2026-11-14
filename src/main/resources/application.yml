@@ -26,7 +26,9 @@ spring:
     show-sql: false
   h2:
     console:
-      enabled: true
+      # H2 控制台默认关闭：它不带鉴权（sa / 空密码），暴露出去任何人都能直接操作数据库；
+      # 本地排查需要时临时改为 true，用完记得关回去
+      enabled: false
       path: /h2-console
   jackson:
     default-property-inclusion: non_null

@@ -1,14 +1,13 @@
 package com.novel.browse.web.mcp;
 
 import com.novel.browse.config.McpProperties;
-import com.novel.browse.i18n.Messages;
+import com.novel.browse.web.UnauthorizedException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -35,15 +34,13 @@ public class McpController {
 
     private final McpServer server;
     private final McpProperties properties;
-    private final Messages messages;
     /** Fallback token: the MCP endpoint performs admin operations, so the admin token applies by default */
     private final String adminToken;
 
-    public McpController(McpServer server, McpProperties properties, Messages messages,
+    public McpController(McpServer server, McpProperties properties,
                          @Value("${app.admin.token:}") String adminToken) {
         this.server = server;
         this.properties = properties;
-        this.messages = messages;
         this.adminToken = adminToken;
         if (requiredToken() == null) {
             log.warn("No MCP token configured (app.mcp.token / app.admin.token), /mcp is open to anyone");
@@ -53,13 +50,7 @@ public class McpController {
     /** Handles one JSON-RPC message; notifications (no id) answer 202 without a body */
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<String> handle(@RequestBody String body, HttpServletRequest request) {
-        String token = requiredToken();
-        if (token != null && !token.equals(requestToken(request))) {
-            log.warn("Rejected an MCP request with a missing or invalid token from {}", request.getRemoteAddr());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                    .body("{\"error\":\"Unauthorized\",\"message\":\"" + messages.get("error.mcp.tokenMissing") + "\"}");
-        }
+        requireToken(request);
         String response = server.handle(body);
         return response == null ? ResponseEntity.accepted().build()
                 : ResponseEntity.ok().header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE).body(response);
@@ -67,7 +58,8 @@ public class McpController {
 
     /** Server-to-client stream: this server only sends keep-alive comments, so the stream stays empty */
     @GetMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter stream() {
+    public SseEmitter stream(HttpServletRequest request) {
+        requireToken(request);
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         emitter.onTimeout(emitter::complete);
         emitter.onError(e -> emitter.complete());
@@ -81,8 +73,21 @@ public class McpController {
 
     /** Session termination: the server is stateless, so this only acknowledges the request */
     @DeleteMapping
-    public ResponseEntity<Void> terminate() {
+    public ResponseEntity<Void> terminate(HttpServletRequest request) {
+        requireToken(request);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Rejects the request with 401 when a token is configured but the request carries none or a wrong one.
+     * All three MCP verbs (POST / GET / DELETE) are guarded the same way.
+     */
+    private void requireToken(HttpServletRequest request) {
+        String token = requiredToken();
+        if (token != null && !token.equals(requestToken(request))) {
+            log.warn("Rejected an MCP request with a missing or invalid token from {}", request.getRemoteAddr());
+            throw new UnauthorizedException("error.mcp.tokenMissing");
+        }
     }
 
     /** Configured token, null when the endpoint is open */

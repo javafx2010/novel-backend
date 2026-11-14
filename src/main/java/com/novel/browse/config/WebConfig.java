@@ -64,10 +64,10 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         if (adminToken == null || adminToken.isBlank()) {
-            log.warn("app.admin.token is not configured, admin APIs (/admin/**) are not authenticated; configure it in production");
+            log.warn("app.admin.token is not configured, admin APIs (/admin/**, /cache/**) are not authenticated; configure it in production");
         }
         registry.addInterceptor(new AdminTokenInterceptor(adminToken))
-                .addPathPatterns("/admin/**");
+                .addPathPatterns("/admin/**", "/cache/**");
     }
 
     @Override

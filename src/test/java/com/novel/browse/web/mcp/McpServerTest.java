@@ -7,8 +7,10 @@ import com.novel.browse.i18n.I18nSettings;
 import com.novel.browse.i18n.Messages;
 import com.novel.browse.service.AdminService;
 import com.novel.browse.service.NovelService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -48,9 +50,17 @@ class McpServerTest {
 
     @BeforeEach
     void setUp() {
+        // The server resolves messages via LocaleContextHolder, which falls back to the system
+        // locale outside a request; pin it to English so assertions hold on any machine
+        LocaleContextHolder.setDefaultLocale(Locale.ENGLISH);
         adminService = mock(AdminService.class);
         novelService = mock(NovelService.class);
         server = new McpServer(adminService, novelService, new McpProperties(), englishMessages());
+    }
+
+    @AfterEach
+    void resetLocale() {
+        LocaleContextHolder.resetLocaleContext();
     }
 
     @Test
