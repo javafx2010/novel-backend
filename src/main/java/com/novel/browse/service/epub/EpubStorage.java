@@ -99,6 +99,24 @@ public class EpubStorage {
         }
     }
 
+    /**
+     * Resolves a stored relative path to the file on disk, guarding against path traversal.
+     *
+     * @return the normalized path, or {@code null} when the argument is blank or points outside the
+     *         upload directory (the caller still has to check that the file exists)
+     */
+    public Path resolve(String relativePath) {
+        if (relativePath == null || relativePath.isBlank()) {
+            return null;
+        }
+        Path target = dir.resolve(relativePath).normalize();
+        if (!target.startsWith(dir)) {
+            log.warn("Refusing to resolve a path outside the upload directory: {}", relativePath);
+            return null;
+        }
+        return target;
+    }
+
     /** Path of a file relative to the upload directory, stored in the database */
     public String relative(Path file) {
         Path target = file.toAbsolutePath().normalize();

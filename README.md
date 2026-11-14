@@ -104,6 +104,9 @@ cp deploy.conf.example deploy.conf   # 可选：改端口 / JVM 参数 / 分支
 | GET | `/novels/{id}/chapter-page?page=0&size=50` | 分页章节目录 |
 | GET | `/novels/{id}/chapters/{no}` | 按章节号阅读正文 |
 | GET | `/novels/chapters/{chapterId}` | 按章节 id 阅读正文 |
+| GET | `/market/books?language=&categoryId=&q=&sort=&page=&size=` | 图书市场：可下载书目（分页，可按语言 / 分类 / 关键词） |
+| GET | `/market/books/{id}` | 市场书目详情（含下载路径与文件大小） |
+| GET | `/market/books/{id}/download` | 下载该书的 EPUB 原文件到本地（`Content-Disposition: attachment`） |
 | GET | `/cache` | RocksDB 缓存统计 |
 | DELETE | `/cache/{name}` | 清空指定缓存 |
 | POST | `/admin/novels`（multipart：`file`、`categoryId`，可选 `categoryName`、`categoryDescription`、`status`、`tags`、`language`、`versionGroup`） | 上传 EPUB，自动解析入库（分类按语言分开，可同时写入该语言的分类简介） |
@@ -313,6 +316,21 @@ curl -b cookies.txt -X POST http://localhost:8080/auth/logout
 - 访问地址：`GET /covers/<file>`（`WebConfig` 同时映射运行时目录与 classpath，缓存 1 小时）
 - EPUB 没有封面时 `coverUrl` 为 null（全局 `non_null`，字段不输出），前端用渐变兜底
 - 删除书目会同时删除其封面文件
+
+## 图书市场（下载）
+
+市场只做「浏览 + 下载」，**没有购买 / 支付 / 权益校验**：一本书只要有 EPUB 原文件（`nb_novel.source_file`，导入时落盘）就出现在市场里，任何人都能免费下载到本地。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/market/books?language=&categoryId=&q=&sort=update\|hot\|rating&page=0&size=20` | 可下载书目分页列表；`language` 缺省取站点语言、`all` 取全部版本；`q` 匹配书名 / 作者 / 标签 |
+| GET | `/market/books/{id}` | 单本详情，返回 `novel`（书目摘要）+ `fileName` + `fileSize` + `downloadUrl` |
+| GET | `/market/books/{id}/download` | 以 `application/epub+zip` 附件流式返回 EPUB，文件名取书名（非法字符已替换） |
+
+- 直接下载到本地：`curl -OJ http://localhost:8080/market/books/12/download`
+- `fileSize` 为服务器上 EPUB 的字节数；文件缺失时列表仍可见但 `fileSize` 为 null，下载返回 404
+- 市场不要求登录，`/market/**` 默认加入签名免签路径（下载常由浏览器直接点击链接触发，无法签名）
+- 实现：`MarketController` / `MarketService` / `MarketBook`，文件读取经 `EpubStorage.resolve()` 并做了路径穿越防护
 
 ## MCP（Model Context Protocol）
 

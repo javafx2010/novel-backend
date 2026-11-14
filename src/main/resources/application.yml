@@ -68,7 +68,8 @@ app:
     # 免签路径（Ant 模式）；启用签名后健康检查路径需放这里，否则部署脚本的健康检查会失败
     # /mcp 由 app.mcp.token 鉴权，MCP 客户端无法签名，故默认免签
     # /auth/** 与 /me/** 是浏览器账户接口，浏览器无法签名，故免签（登录态本身由 cookie 校验）
-    exclude-paths: [ '/covers/**', '/mcp', '/auth/**', '/me/**' ]
+    # /market/** 是公开图书市场（浏览 + 下载 EPUB）：下载常由浏览器/客户端直接点击链接触发，无法签名
+    exclude-paths: [ '/covers/**', '/market/**', '/mcp', '/auth/**', '/me/**' ]
   mcp:
     # MCP（Model Context Protocol）端点：POST /mcp（JSON-RPC 2.0，Streamable HTTP）
     # 工具：upload_epub / update_novel / list_categories / list_novels
