@@ -1,8 +1,12 @@
 package com.novel.browse.service;
 
+import com.novel.browse.domain.Category;
+import com.novel.browse.domain.Chapter;
 import com.novel.browse.domain.Novel;
+import com.novel.browse.repository.ChapterRepository;
 import com.novel.browse.repository.NovelRepository;
 import com.novel.browse.service.epub.EpubStorage;
+import com.novel.browse.service.epub.MarketEpubBuilder;
 import com.novel.browse.web.dto.MarketBook;
 import com.novel.browse.web.dto.PageResult;
 import org.springframework.data.domain.Page;
@@ -16,14 +20,19 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Book market: lists the books that can be downloaded to a local device and streams their EPUB.
  * <p>
- * There is no purchase step and no entitlement check &mdash; a book is "on the market" exactly when a
- * source EPUB is stored for it ({@code nb_novel.source_file}). The download endpoint just hands the
- * original file back to the caller.
+ * There is no purchase step and no entitlement check. A book is on the market when a source EPUB is
+ * stored for it ({@code nb_novel.source_file}) <b>or</b> it has at least one chapter (books imported
+ * chapter-by-chapter, e.g. crawled news). For the latter the download endpoint builds an EPUB on the
+ * fly with {@link MarketEpubBuilder}, so the client always receives a real {@code .epub}.
  */
 @Service
 @Transactional(readOnly = true)
@@ -34,15 +43,20 @@ public class MarketService {
     private final NovelRepository novelRepository;
     private final NovelService novelService;
     private final EpubStorage epubStorage;
+    private final ChapterRepository chapterRepository;
+    private final MarketEpubBuilder epubBuilder;
 
-    public MarketService(NovelRepository novelRepository, NovelService novelService, EpubStorage epubStorage) {
+    public MarketService(NovelRepository novelRepository, NovelService novelService, EpubStorage epubStorage,
+                         ChapterRepository chapterRepository, MarketEpubBuilder epubBuilder) {
         this.novelRepository = novelRepository;
         this.novelService = novelService;
         this.epubStorage = epubStorage;
+        this.chapterRepository = chapterRepository;
+        this.epubBuilder = epubBuilder;
     }
 
-    /** One downloadable book resolved to a file on disk */
-    public record Download(Path file, String fileName, long size) {
+    /** One downloadable book: either a file on disk, or an EPUB generated in memory from its chapters. */
+    public record Download(Path file, byte[] bytes, String fileName, long size) {
     }
 
     /**
@@ -57,12 +71,28 @@ public class MarketService {
                                        int page, int size) {
         int safePage = Math.max(page, 0);
         int safeSize = size <= 0 ? 20 : Math.min(size, 100);
-        Specification<Novel> spec = hasSourceFile()
+        Specification<Novel> spec = downloadable()
                 .and(languageSpec(novelService.effectiveLanguage(language)))
                 .and(categorySpec(categoryId))
                 .and(keywordSpec(keyword));
         Page<Novel> result = novelRepository.findAll(spec, PageRequest.of(safePage, safeSize, ordering(sort)));
         return PageResult.of(result, this::toMarketBook);
+    }
+
+    /** Categories that have at least one downloadable book, ordered by their sort number. */
+    public List<Category> categories(String language) {
+        Specification<Novel> spec = downloadable()
+                .and(languageSpec(novelService.effectiveLanguage(language)));
+        Map<Long, Category> byId = new LinkedHashMap<>();
+        for (Novel novel : novelRepository.findAll(spec)) {
+            Category category = novel.getCategory();
+            if (category != null) {
+                byId.putIfAbsent(category.getId(), category);
+            }
+        }
+        return byId.values().stream()
+                .sorted(Comparator.comparingInt((Category c) -> c.getSortNo() == null ? 0 : c.getSortNo()))
+                .toList();
     }
 
     /** Market entry of one book; 404 when the book does not exist or has no downloadable file */
@@ -75,21 +105,30 @@ public class MarketService {
     }
 
     /**
-     * Resolves the EPUB file of one book for download.
+     * Resolves the EPUB of one book for download: the stored source file when present, otherwise an
+     * EPUB generated from the book's chapters.
      *
-     * @throws NotFoundException when the book does not exist, has no source file, or the file is missing
+     * @throws NotFoundException when the book has neither a source file nor any chapter
      */
     public Download download(Long id) {
         Novel novel = novelService.detail(id);
+        String fileName = downloadName(novel);
+
         Path file = epubStorage.resolve(novel.getSourceFile());
-        if (file == null || !Files.isRegularFile(file)) {
-            throw new NotFoundException("error.market.fileMissing", id);
+        if (file != null && Files.isRegularFile(file)) {
+            try {
+                return new Download(file, null, fileName, Files.size(file));
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed to read the EPUB size: " + file, e);
+            }
         }
-        try {
-            return new Download(file, downloadName(novel), Files.size(file));
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to read the EPUB size: " + file, e);
+
+        List<Chapter> chapters = chapterRepository.findByNovelIdOrderByChapterNoAsc(id);
+        if (chapters.isEmpty()) {
+            throw new NotFoundException("error.market.notDownloadable", id);
         }
+        byte[] bytes = epubBuilder.build(novel, chapters);
+        return new Download(null, bytes, fileName, bytes.length);
     }
 
     private MarketBook toMarketBook(Novel novel) {
@@ -137,13 +176,18 @@ public class MarketService {
     }
 
     private static boolean downloadable(Novel novel) {
-        return novel.getSourceFile() != null && !novel.getSourceFile().isBlank();
+        boolean hasFile = novel.getSourceFile() != null && !novel.getSourceFile().isBlank();
+        boolean hasChapters = novel.getChapterCount() != null && novel.getChapterCount() > 0;
+        return hasFile || hasChapters;
     }
 
-    private static Specification<Novel> hasSourceFile() {
-        return (root, query, builder) -> builder.and(
-                builder.isNotNull(root.get("sourceFile")),
-                builder.notEqual(root.get("sourceFile"), ""));
+    /** Books with a stored EPUB file or at least one chapter (an EPUB can be generated for those). */
+    private static Specification<Novel> downloadable() {
+        return (root, query, builder) -> builder.or(
+                builder.and(
+                        builder.isNotNull(root.get("sourceFile")),
+                        builder.notEqual(root.get("sourceFile"), "")),
+                builder.greaterThan(root.get("chapterCount"), 0));
     }
 
     private static Specification<Novel> languageSpec(String language) {

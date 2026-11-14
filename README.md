@@ -319,16 +319,17 @@ curl -b cookies.txt -X POST http://localhost:8080/auth/logout
 
 ## 图书市场（下载）
 
-市场只做「浏览 + 下载」，**没有购买 / 支付 / 权益校验**：一本书只要有 EPUB 原文件（`nb_novel.source_file`，导入时落盘）就出现在市场里，任何人都能免费下载到本地。
+市场只做「浏览 + 下载」，**没有购买 / 支付 / 权益校验**：一本书只要**有 EPUB 原文件**（`nb_novel.source_file`，导入时落盘）**或至少 1 个章节**就出现在市场里，任何人都能免费下载到本地。没有原文件的书（如按章节抓取的新闻）在下载时由后端**即时拼装成 EPUB**（`MarketEpubBuilder`），客户端拿到的始终是标准 `.epub`。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/market/books?language=&categoryId=&q=&sort=update\|hot\|rating&page=0&size=20` | 可下载书目分页列表；`language` 缺省取站点语言、`all` 取全部版本；`q` 匹配书名 / 作者 / 标签 |
 | GET | `/market/books/{id}` | 单本详情，返回 `novel`（书目摘要）+ `fileName` + `fileSize` + `downloadUrl` |
-| GET | `/market/books/{id}/download` | 以 `application/epub+zip` 附件流式返回 EPUB，文件名取书名（非法字符已替换） |
+| GET | `/market/categories?language=` | 只返回**确实有可下载图书**的分类（去重、按 sortNo 排序），避免前端出现空分类 |
+| GET | `/market/books/{id}/download` | 以 `application/epub+zip` 附件流式返回 EPUB（有原文件用原文件，否则按章节即时生成），文件名取书名（非法字符已替换） |
 
 - 直接下载到本地：`curl -OJ http://localhost:8080/market/books/12/download`
-- `fileSize` 为服务器上 EPUB 的字节数；文件缺失时列表仍可见但 `fileSize` 为 null，下载返回 404
+- `fileSize` 为服务器上原 EPUB 的字节数；按章节生成的书没有原文件，`fileSize` 为 null（仍可下载）
 - 市场不要求登录，`/market/**` 默认加入签名免签路径（下载常由浏览器直接点击链接触发，无法签名）
 - 实现：`MarketController` / `MarketService` / `MarketBook`，文件读取经 `EpubStorage.resolve()` 并做了路径穿越防护
 
