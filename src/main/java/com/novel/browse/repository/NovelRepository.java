@@ -42,7 +42,4 @@ public interface NovelRepository extends JpaRepository<Novel, Long>, JpaSpecific
 
     /** Books changed after the given time, newest first (client incremental sync) */
     List<Novel> findByUpdatedAtAfterOrderByUpdatedAtDesc(LocalDateTime since);
-
-    /** All daily news books of the crawler author, e.g. 《新闻日报 2026-11-15》 */
-    List<Novel> findByAuthorIgnoreCaseAndTitleStartingWithIgnoreCase(String author, String titlePrefix);
 }

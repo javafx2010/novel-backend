@@ -48,13 +48,6 @@ public class Chapter implements Serializable {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    /**
-     * Absolute URL the chapter text came from (crawler imports); null for EPUB uploads.
-     * Used to skip already imported news items when the crawler runs again.
-     */
-    @Column(name = "source_url", length = 512)
-    private String sourceUrl;
-
     @PrePersist
     @PreUpdate
     void stampUpdatedAt() {
@@ -123,13 +116,5 @@ public class Chapter implements Serializable {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
-    }
-
-    public String getSourceUrl() {
-        return sourceUrl;
-    }
-
-    public void setSourceUrl(String sourceUrl) {
-        this.sourceUrl = sourceUrl;
     }
 }

@@ -52,47 +52,6 @@ app:
     # HTTPS 站点设为 true（浏览器只通过 HTTPS 回传 cookie）；当前是 HTTP 部署，保持 false
     cookie-secure: false
     cookie-same-site: Lax
-  news:
-    # 新闻爬虫：抓取美国新闻（英文），自动翻译成中文，每小时运行一次
-    # 当天新闻追加进当天的《新闻日报 yyyy-MM-dd》（章节按来源链接去重，不会重复入库）
-    # 手动触发：POST /admin/news/run（X-Admin-Token）；查看配置：GET /admin/news/config
-    enabled: true
-    # 每小时整点运行
-    cron: '0 0 * * * *'
-    category-name: 新闻
-    category-description: 自动抓取翻译的美国新闻
-    language: zh_CN
-    author: 新闻抓取
-    title-prefix: 新闻日报
-    # 单次每个源最多入库条数（章节按来源链接去重，重复运行不会产生重复章节）
-    max-items: 20
-    # 新闻保留天数：只保留最近一个月的《新闻日报》，过期自动删除（每次运行后清理）
-    retention-days: 30
-    timeout-seconds: 20
-    max-article-chars: 60000
-    # 翻译：Google 免密翻译端点（服务器需能访问 googleapis.com）；失败时保留英文原文并标注
-    translate-enabled: true
-    translate-from: en
-    translate-to: zh-CN
-    translate-chunk-chars: 1200
-    translate-delay-ms: 300
-    sources:
-      # RSS 源（优先）
-      - name: NPR News
-        type: RSS
-        list-url: https://feeds.npr.org/1001/rss.xml
-        article-selector: '.article-body p, article p'
-      - name: CNN US
-        type: RSS
-        list-url: http://rss.cnn.com/rss/cnn_us.rss
-        article-selector: '.article__content p, article p'
-      # HTML 列表页兜底（RSS 不可用时启用；页面改版需同步调整选择器）
-      - name: NPR National
-        type: HTML
-        list-url: https://www.npr.org/sections/national/
-        item-selector: 'h2 a[href], .item a[href]'
-        link-pattern: '^https://www\.npr\.org/\d{4}/\d{2}/\d{2}/.+'
-        article-selector: '.storytext p'
   admin:
     # 后台管理接口（/admin/**）的简易鉴权令牌，请求头 X-Admin-Token
     # 留空表示不校验（仅适合本地与内网），生产环境请设置随机值
